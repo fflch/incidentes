@@ -5,7 +5,7 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
             <h1 class="h3 mb-1"><i class="fas fa-plus-circle text-primary me-2"></i>Cadastrar Alerta</h1>
-            <p class="text-muted mb-0">Preencha os dados do incidente para registrar o alerta na base do Morpheus.</p>
+            <p class="text-muted mb-0">Preencha os dados do incidente para registrar o alerta.</p>
         </div>
         <a href="{{ route('alerts.index') }}" class="btn btn-outline-secondary">
             <i class="fas fa-arrow-left me-1"></i> Voltar

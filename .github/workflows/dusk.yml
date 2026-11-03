@@ -9,7 +9,7 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      SERVICE_NAME: morpheus
+      SERVICE_NAME: incidentes
 
     steps:
       - name: Checkout

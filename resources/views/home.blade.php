@@ -176,7 +176,7 @@
                                         <i class="fas fa-check-double fa-2x"></i>
                                     </div>
                                     <h4 class="text-success fw-bold">Tudo sob controle!</h4>
-                                    <p class="text-muted mb-0">Não há nenhum alerta pendente registrado no sistema Morpheus.</p>
+                                    <p class="text-muted mb-0">Não há nenhum alerta pendente registrado no sistema.</p>
                                 </div>
                             </td>
                         </tr>
@@ -284,7 +284,7 @@
                                 <i class="fas fa-check-double fa-2x"></i>
                             </div>
                             <h4 class="text-success fw-bold">Tudo sob controle!</h4>
-                            <p class="text-muted mb-0">Não há nenhum alerta pendente registrado no sistema Morpheus.</p>
+                            <p class="text-muted mb-0">Não há nenhum alerta pendente registrado no sistema.</p>
                         </div>
                     </td>
                 </tr>

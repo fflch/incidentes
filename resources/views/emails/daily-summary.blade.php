@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <title>Resumo Diário de Pendências - Morpheus</title>
+    <title>Resumo Diário de Pendências</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
@@ -107,7 +107,7 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>Morpheus • Resumo Diário de Pendências</h1>
+            <h1>Resumo Diário de Pendências</h1>
             <p style="margin: 6px 0 0; font-size: 14px; opacity: 0.85;">{{ now()->translatedFormat('l, d \d\e F \d\e Y') }}</p>
         </div>
         <div class="content">
@@ -117,7 +117,7 @@
                 </p>
             @else
                 <p style="font-size: 15px; margin-top: 0;">
-                    Olá! Este é o relatório diário de incidentes em aberto no Morpheus para a equipe de gestão:
+                    Olá! Este é o relatório diário de incidentes em aberto:
                 </p>
 
                 <div class="stats-grid">
@@ -182,12 +182,12 @@
                 @if($destinatario)
                     <a href="{{ url('/meus-alertas') }}" class="btn">Acessar Meus Alertas</a>
                 @else
-                    <a href="{{ url('/dashboard') }}" class="btn">Acessar Painel Morpheus</a>
+                    <a href="{{ url('/dashboard') }}" class="btn">Acessar Painel</a>
                 @endif
             </div>
         </div>
         <div class="footer">
-            Este é um e-mail diário automático gerado pelo sistema Morpheus.
+            Este é um e-mail diário automático.
         </div>
     </div>
 </body>

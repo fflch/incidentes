@@ -26,8 +26,8 @@ class DailyAlertsSummaryMail extends Mailable
     {
         $hoje = now()->format('d/m/Y');
         $assunto = $this->destinatario
-            ? "[Morpheus] Resumo diário: suas pendências em aberto ({$this->alerts->count()}) - {$hoje}"
-            : "[Morpheus] Resumo diário de alertas pendentes ({$this->totalGeral}) - {$hoje}";
+            ? "Resumo diário: suas pendências em aberto ({$this->alerts->count()}) - {$hoje}"
+            : "Resumo diário de alertas pendentes ({$this->totalGeral}) - {$hoje}";
 
         return new Envelope(
             subject: $assunto,

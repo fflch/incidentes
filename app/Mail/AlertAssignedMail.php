@@ -22,7 +22,7 @@ class AlertAssignedMail extends Mailable
     public function envelope(): Envelope
     {
         $servico = $this->alert->service_name ?? $this->alert->type;
-        $prefixo = $this->tipoDestinatario === 'responsavel' ? '[Morpheus] Alerta atribuído a você' : '[Morpheus] Novo alerta atribuído';
+        $prefixo = $this->tipoDestinatario === 'responsavel' ? 'Alerta atribuído a você' : 'Novo alerta atribuído';
 
         return new Envelope(
             subject: "{$prefixo}: {$servico} (#{$this->alert->id})",

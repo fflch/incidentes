@@ -1,14 +1,14 @@
 services:
-  morpheus:
+  incidentes:
     build: .
-    image: morpheus:latest
-    container_name: morpheus
+    image: incidentes:latest
+    container_name: incidentes
     ports:
       - "8000:80"
     depends_on:
       - mariadb
     networks:
-      - morpheus-network
+      - incidentes-network
     volumes:
       - ./:/var/www/html
     environment:
@@ -17,21 +17,21 @@ services:
 
   mariadb:
     image: mariadb:11
-    container_name: morpheus_mariadb
+    container_name: incidentes_mariadb
     restart: always
     environment:
-      MYSQL_DATABASE: morpheus
-      MYSQL_USER: morpheus
-      MYSQL_PASSWORD: morpheus
-      MYSQL_ROOT_PASSWORD: morpheus
+      MYSQL_DATABASE: incidentes
+      MYSQL_USER: incidentes
+      MYSQL_PASSWORD: incidentes
+      MYSQL_ROOT_PASSWORD: incidentes
     volumes:
       - mariadb_data:/var/lib/mysql
     networks:
-      - morpheus-network
+      - incidentes-network
 
   phpmyadmin:
     image: phpmyadmin:latest
-    container_name: morpheus_phpmyadmin
+    container_name: incidentes_phpmyadmin
     restart: always
     depends_on:
       - mariadb
@@ -41,44 +41,44 @@ services:
       PMA_HOST: mariadb
       PMA_PORT: 3306
       PMA_USER: root
-      PMA_PASSWORD: morpheus
+      PMA_PASSWORD: incidentes
     networks:
-      - morpheus-network
+      - incidentes-network
 
   selenium:
     image: selenium/standalone-chrome
-    container_name: morpheus_selenium
+    container_name: incidentes_selenium
     ports:
       - "7900:7900"
     networks:
-      - morpheus-network
+      - incidentes-network
     shm_size: 2gb
 
   # No /etc/hosts do seu computador colocar a linha `127.0.0.1 auth.local` 
   # particularidades do protocolo oAuth1 usado na USP
   senhaunica-faker:
     image: uspdev/senhaunica-faker
-    container_name: morpheus_senhaunica-faker
+    container_name: incidentes_senhaunica-faker
     ports:
       - "3141:3141"
     environment:
           - APP_URL=http://auth.local:3141
     networks:
-      morpheus-network:
+      incidentes-network:
         aliases:
           - auth.local
 
   mailpit:
     image: axllent/mailpit:latest
-    container_name: morpheus__mailpit
+    container_name: incidentes__mailpit
     ports:
       - "1025:1025"   # SMTP
       - "8025:8025"   # Interface Web
     networks:
-      - morpheus-network
+      - incidentes-network
 
 networks:
-  morpheus-network:
+  incidentes-network:
 
 volumes:
   mariadb_data:

@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <title>Alerta Atribuído - Morpheus</title>
+    <title>Alerta Atribuído</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
@@ -97,7 +97,7 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>Morpheus • Gestão de Alertas</h1>
+            <h1>Gestão de Alertas</h1>
         </div>
         <div class="content">
             <p style="font-size: 16px; margin-top: 0;">
@@ -145,7 +145,7 @@
             </div>
         </div>
         <div class="footer">
-            Este é um e-mail automático gerado pelo sistema Morpheus.
+            Este é um e-mail automático.
         </div>
     </div>
 </body>
