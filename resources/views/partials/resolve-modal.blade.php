@@ -6,7 +6,7 @@
                 <h5 class="modal-title" id="resolveAlertModalLabel">
                     <i class="fas fa-check-circle me-1"></i> Marcar Alerta como Resolvido
                 </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" data-dismiss="modal" aria-label="Fechar"></button>
             </div>
             <form id="resolveAlertForm" method="POST" action="">
                 @csrf
@@ -36,7 +36,7 @@
                     </div>
                 </div>
                 <div class="modal-footer bg-light">
-                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal" data-dismiss="modal">Cancelar</button>
                     <button type="submit" class="btn btn-success px-4" id="btnConfirmResolve">
                         <i class="fas fa-check me-1"></i> Confirmar Resolução
                     </button>
@@ -59,8 +59,17 @@
         textarea.classList.remove('is-invalid');
 
         const modalEl = document.getElementById('resolveAlertModal');
-        const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
-        modal.show();
+
+        if (window.bootstrap?.Modal) {
+            const modal = typeof window.bootstrap.Modal.getInstance === 'function'
+                ? window.bootstrap.Modal.getInstance(modalEl) || new window.bootstrap.Modal(modalEl)
+                : new window.bootstrap.Modal(modalEl);
+            modal.show();
+        } else if (window.jQuery?.fn.modal) {
+            window.jQuery(modalEl).modal('show');
+        } else {
+            console.error('Bootstrap Modal não está disponível.');
+        }
 
         setTimeout(() => textarea.focus(), 350);
     }

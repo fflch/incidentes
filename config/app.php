@@ -65,8 +65,7 @@ return [
     |
     */
 
-    #'timezone' => 'America/Sao_Paulo',
-    'timezone' => 'UTC',
+    'timezone' => env('APP_TIMEZONE', 'America/Sao_Paulo'),
 
     /*
     |--------------------------------------------------------------------------
