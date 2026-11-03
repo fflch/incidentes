@@ -115,4 +115,11 @@ return [
         'name' => env('MAIL_FROM_NAME', env('APP_NAME', 'Laravel')),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | E-mails da Gestão para Notificações de Alertas
+    |--------------------------------------------------------------------------
+    */
+    'emails_gestao' => array_values(array_filter(array_map('trim', explode(',', env('EMAILS_GESTAO', 'ti.fflch@usp.br,sites.fflch@usp.br'))))),
+
 ];

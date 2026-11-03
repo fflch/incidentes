@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\AlertRequest;
 use App\Models\Alert;
 use App\Models\User;
+use App\Services\AlertNotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 
@@ -12,7 +13,8 @@ class AlertController extends Controller
 {
     public function __construct()
     {
-        $this->middleware(['auth', 'can:admin']);
+        $this->middleware('auth');
+        $this->middleware('can:admin')->except(['resolve']);
     }
 
     public function index(Request $request)
@@ -28,13 +30,14 @@ class AlertController extends Controller
             })
             ->where('status_resolucao', 'pendente')
             ->orderByDesc('data_ocorrencia')
-            ->get();
+            ->paginate(20)
+            ->withQueryString();
 
         return view('alerts.index', [
             'alerts' => $alerts,
             'title' => 'Alertas pendentes',
             'statusFilter' => 'pendente',
-            'users' => User::orderBy('name')->get(),
+            'users' => User::getAdmins(),
         ]);
     }
 
@@ -46,18 +49,21 @@ class AlertController extends Controller
                 $query->where(function ($q) use ($request) {
                     $q->where('id_externo', 'like', '%' . $request->search . '%')
                         ->orWhere('service_name', 'like', '%' . $request->search . '%')
-                        ->orWhere('mensagem', 'like', '%' . $request->search . '%');
+                        ->orWhere('mensagem', 'like', '%' . $request->search . '%')
+                        ->orWhere('comentario', 'like', '%' . $request->search . '%');
                 });
             })
             ->where('status_resolucao', 'resolvido')
-            ->orderByDesc('data_ocorrencia')
-            ->get();
+            ->orderByDesc('resolvido_em')
+            ->orderByDesc('updated_at')
+            ->paginate(20)
+            ->withQueryString();
 
-        return view('alerts.index', [
+        return view('alerts.resolved', [
             'alerts' => $alerts,
             'title' => 'Alertas resolvidos',
             'statusFilter' => 'resolvido',
-            'users' => User::orderBy('name')->get(),
+            'users' => User::getAdmins(),
         ]);
     }
 
@@ -65,8 +71,16 @@ class AlertController extends Controller
     {
         Gate::authorize('admin');
 
+        $suggestedServices = Alert::query()
+            ->whereNotNull('service_name')
+            ->where('service_name', '!=', '')
+            ->distinct()
+            ->orderBy('service_name')
+            ->pluck('service_name');
+
         return view('alerts.create', [
-            'users' => User::orderBy('name')->get(),
+            'users' => User::getAdmins(),
+            'suggestedServices' => $suggestedServices,
         ]);
     }
 
@@ -77,9 +91,15 @@ class AlertController extends Controller
         $payload['comentario'] = $payload['comentario'] ?? null;
         $payload['service_name'] = $payload['service_name'] ?? null;
         $payload['atribuido'] = $payload['atribuido'] ?? null;
-        $payload['resolvido_por_id'] = null;
+        $payload['resolvido_por_id'] = $payload['status_resolucao'] === 'resolvido' ? auth()->id() : null;
+        $payload['resolvido_em'] = $payload['status_resolucao'] === 'resolvido' ? now() : null;
 
         $alert = Alert::create($payload);
+
+        // Se atribuído (seja manualmente ou via AssignmentRule em booted/creating), notifica por e-mail
+        if (!empty($alert->atribuido)) {
+            AlertNotificationService::notifyAssignment($alert);
+        }
 
         return redirect()->route('alerts.index')->with('success', 'Alerta cadastrado com sucesso.');
     }
@@ -88,30 +108,45 @@ class AlertController extends Controller
     {
         return view('alerts.show', [
             'alert' => $alert->load(['atribuidoUser', 'resolvidoPor']),
-            'users' => User::orderBy('name')->get(),
+            'users' => User::getAdmins(),
         ]);
     }
 
     public function edit(Alert $alert)
     {
+        $suggestedServices = Alert::query()
+            ->whereNotNull('service_name')
+            ->where('service_name', '!=', '')
+            ->distinct()
+            ->orderBy('service_name')
+            ->pluck('service_name');
+
         return view('alerts.edit', [
             'alert' => $alert->load(['atribuidoUser', 'resolvidoPor']),
-            'users' => User::orderBy('name')->get(),
+            'users' => User::getAdmins(),
+            'suggestedServices' => $suggestedServices,
         ]);
     }
 
     public function update(AlertRequest $request, Alert $alert)
     {
         $data = $request->validated();
+        $oldAtribuido = $alert->atribuido;
 
         if ($request->filled('status_resolucao')) {
             $alert->status_resolucao = $request->status_resolucao;
-            if ($request->status_resolucao === 'resolvido' && empty($alert->resolvido_por_id)) {
-                $alert->resolvido_por_id = auth()->id();
+            if ($request->status_resolucao === 'resolvido') {
+                if (empty($alert->resolvido_por_id)) {
+                    $alert->resolvido_por_id = auth()->id();
+                }
+                if (empty($alert->resolvido_em)) {
+                    $alert->resolvido_em = now();
+                }
             }
 
             if ($request->status_resolucao === 'pendente') {
                 $alert->resolvido_por_id = null;
+                $alert->resolvido_em = null;
             }
         }
 
@@ -126,6 +161,10 @@ class AlertController extends Controller
         $alert->fill($data);
         $alert->save();
 
+        if (!empty($alert->atribuido) && $alert->atribuido != $oldAtribuido) {
+            AlertNotificationService::notifyAssignment($alert);
+        }
+
         return redirect()->route('alerts.show', ['alert' => $alert])->with('success', 'Alerta atualizado.');
     }
 
@@ -136,28 +175,86 @@ class AlertController extends Controller
         return redirect()->route('alerts.index')->with('success', 'Alerta removido.');
     }
 
-    public function toggleStatus(Alert $alert)
+    /**
+     * Marca o alerta como resolvido com comentário obrigatório
+     */
+    public function resolve(Request $request, Alert $alert)
     {
-        $alert->status_resolucao = $alert->status_resolucao === 'pendente' ? 'resolvido' : 'pendente';
-        if ($alert->status_resolucao === 'resolvido') {
-            $alert->resolvido_por_id = auth()->id();
-        } else {
-            $alert->resolvido_por_id = null;
+        // Autorização: deve ser admin ou a pessoa atribuída
+        if (!Gate::allows('admin') && $alert->atribuido !== auth()->id()) {
+            abort(403, 'Ação não autorizada.');
         }
+
+        $validated = $request->validate([
+            'comentario' => ['required', 'string', 'min:3'],
+        ], [
+            'comentario.required' => 'É obrigatório informar um comentário descrevendo a resolução do alerta.',
+            'comentario.min' => 'O comentário deve conter pelo menos 3 caracteres.',
+        ]);
+
+        $alert->status_resolucao = 'resolvido';
+        $alert->comentario = trim($validated['comentario']);
+        $alert->resolvido_por_id = auth()->id();
+        $alert->resolvido_em = now();
         $alert->save();
 
-        return back()->with('success', 'Status do alerta atualizado.');
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Alerta marcado como resolvido com sucesso.',
+                'alert' => $alert,
+            ]);
+        }
+
+        return back()->with('success', 'Alerta marcado como resolvido com sucesso.');
     }
 
+    /**
+     * Reabre um alerta resolvido
+     */
+    public function reopen(Alert $alert)
+    {
+        Gate::authorize('admin');
+
+        $alert->status_resolucao = 'pendente';
+        $alert->resolvido_por_id = null;
+        $alert->resolvido_em = null;
+        $alert->save();
+
+        return back()->with('success', 'Alerta reaberto com sucesso.');
+    }
+
+    /**
+     * Atribui ou altera o responsável por um alerta
+     */
     public function assignUser(Request $request, Alert $alert)
     {
+        Gate::authorize('admin');
+
         $request->validate([
             'atribuido' => ['nullable', 'exists:users,id'],
         ]);
 
-        $alert->atribuido = $request->input('atribuido');
+        $oldAtribuido = $alert->atribuido;
+        $newAtribuido = $request->input('atribuido');
+
+        $alert->atribuido = $newAtribuido ?: null;
         $alert->save();
 
-        return back()->with('success', 'Atribuição atualizada.');
+        // Se atribuído a um novo responsável, notifica por e-mail
+        if (!empty($newAtribuido) && $newAtribuido != $oldAtribuido) {
+            AlertNotificationService::notifyAssignment($alert);
+        }
+
+        if ($request->expectsJson() || $request->ajax()) {
+            $alert->load('atribuidoUser');
+            return response()->json([
+                'success' => true,
+                'message' => 'Atribuição atualizada com sucesso.',
+                'atribuido_nome' => $alert->atribuidoUser?->name ?? 'Não atribuído',
+            ]);
+        }
+
+        return back()->with('success', 'Atribuição atualizada com sucesso.');
     }
 }

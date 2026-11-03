@@ -3,8 +3,33 @@
 
 $menu = [
     [
-        'text' => '<i class="fas fa-home"></i> Home',
+        'text' => '<i class="fas fa-tv me-1"></i> Home',
         'url' => '/',
+    ],
+    [
+        'text' => '<i class="fas fa-user-check me-1"></i> Meus Alertas',
+        'url' => 'meus-alertas',
+        'can' => 'user',
+    ],
+    [
+        'text' => '<i class="fas fa-chart-line me-1"></i> Dashboard',
+        'url' => 'dashboard',
+        'can' => 'admin',
+    ],
+    [
+        'text' => '<i class="fas fa-exclamation-triangle me-1"></i> Alertas Pendentes',
+        'url' => 'alerts',
+        'can' => 'admin',
+    ],
+    [
+        'text' => '<i class="fas fa-check-circle me-1"></i> Alertas Resolvidos',
+        'url' => 'alerts/resolvidos',
+        'can' => 'admin',
+    ],
+    [
+        'text' => '<i class="fas fa-magic me-1"></i> Regras de Atribuição',
+        'url' => 'assignment-rules',
+        'can' => 'admin',
     ],
 ];
 
