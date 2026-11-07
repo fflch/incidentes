@@ -65,7 +65,7 @@
                         <button type="button" class="btn btn-sm btn-outline-primary" id="selectAllPendingAlerts">
                             <i class="fas fa-check-square me-1"></i> Selecionar todos
                         </button>
-                        <button type="button" class="btn btn-sm btn-success" id="bulkResolveButton" data-bs-toggle="modal" data-bs-target="#bulkResolveModal" disabled>
+                        <button type="button" class="btn btn-sm btn-success" id="bulkResolveButton" disabled>
                             <i class="fas fa-check-double me-1"></i> Resolver selecionados
                         </button>
                     </div>
@@ -204,6 +204,7 @@
     document.addEventListener('DOMContentLoaded', function () {
         const selectAllButton = document.getElementById('selectAllPendingAlerts');
         const bulkResolveButton = document.getElementById('bulkResolveButton');
+        const bulkResolveModal = document.getElementById('bulkResolveModal');
         const checkboxAlerts = document.querySelectorAll('.checkbox-alert-select');
         const bulkSelectedAlertsContainer = document.getElementById('bulkSelectedAlertsContainer');
         const bulkResolveCount = document.getElementById('bulkResolveCount');
@@ -211,14 +212,14 @@
         function updateBulkSelectionState() {
             const checked = document.querySelectorAll('.checkbox-alert-select:checked');
             const hasSelection = checked.length > 0;
-            bulkResolveButton.disabled = !hasSelection;
-            bulkResolveCount.textContent = checked.length;
+            if (bulkResolveButton) bulkResolveButton.disabled = !hasSelection;
+            if (bulkResolveCount) bulkResolveCount.textContent = checked.length;
 
             let html = '';
             checked.forEach(item => {
                 html += `<input type="hidden" name="ids[]" value="${item.value}">`;
             });
-            bulkSelectedAlertsContainer.innerHTML = html;
+            if (bulkSelectedAlertsContainer) bulkSelectedAlertsContainer.innerHTML = html;
         }
 
         if (selectAllButton) {
@@ -237,6 +238,21 @@
         checkboxAlerts.forEach(item => {
             item.addEventListener('change', updateBulkSelectionState);
         });
+
+        if (bulkResolveButton) {
+            bulkResolveButton.addEventListener('click', function () {
+                if (document.querySelectorAll('.checkbox-alert-select:checked').length === 0) {
+                    return;
+                }
+                updateBulkSelectionState();
+                if (bulkResolveModal && window.bootstrap && window.bootstrap.Modal) {
+                    const modal = typeof window.bootstrap.Modal.getOrCreateInstance === 'function'
+                        ? window.bootstrap.Modal.getOrCreateInstance(bulkResolveModal)
+                        : new window.bootstrap.Modal(bulkResolveModal);
+                    modal.show();
+                }
+            });
+        }
 
         updateBulkSelectionState();
     });

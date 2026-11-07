@@ -349,6 +349,7 @@
                     </td>
                 </tr>
             `;
+            bindBulkSelectionHome();
             return;
         }
 
@@ -401,6 +402,9 @@
 
             html += `
                 <tr id="alert-row-${alert.id}" class="alert-row">
+                    <td class="text-center">
+                        <input type="checkbox" class="form-check-input checkbox-home-alert-select" value="${alert.id}" aria-label="Selecionar alerta ${alert.id}">
+                    </td>
                     <td>
                         <div class="d-flex align-items-center gap-2">
                             <span class="badge bg-warning text-dark p-2 rounded"><i class="fas fa-clock"></i></span>
@@ -426,6 +430,7 @@
 
         tbody.innerHTML = html;
         bindQuickAssignEvents();
+        bindBulkSelectionHome();
     }
 
     function escapeHtml(text) {
@@ -466,115 +471,96 @@
     }
 
     function bindBulkSelectionHome() {
-        const selectAllHome = document.getElementById('toggleSelectAllHome');
-        const homeCheckboxes = document.querySelectorAll('.checkbox-home-alert-select');
-        const bulkHomeResolveButton = document.getElementById('bulkResolveHomeButton');
-        const bulkHomeResolveCount = document.getElementById('bulkHomeResolveCount');
-        const bulkHomeSelectedAlertsContainer = document.getElementById('bulkHomeSelectedAlertsContainer');
+        const toggleSelectAll = document.getElementById('toggleSelectAllHome');
+        const selectAllButton = document.getElementById('selectAllHomeAlerts');
+        const bulkResolveButton = document.getElementById('bulkResolveHomeButton');
+        const bulkResolveModal = document.getElementById('bulkResolveHomeModal');
+        const bulkResolveCount = document.getElementById('bulkHomeResolveCount');
+        const bulkSelectedAlertsContainer = document.getElementById('bulkHomeSelectedAlertsContainer');
+        const selectedCountLabel = document.getElementById('selectedCountLabel');
+        const checkboxes = document.querySelectorAll('.checkbox-home-alert-select');
 
         function syncBulkSelectionHome() {
             const checked = document.querySelectorAll('.checkbox-home-alert-select:checked');
             const hasSelection = checked.length > 0;
-            bulkHomeResolveButton && (bulkHomeResolveButton.disabled = !hasSelection);
-            bulkHomeResolveCount && (bulkHomeResolveCount.textContent = checked.length);
 
-            if (bulkHomeSelectedAlertsContainer) {
-                bulkHomeSelectedAlertsContainer.innerHTML = Array.from(checked).map(item => `<input type="hidden" name="ids[]" value="${item.value}">`).join('');
+            if (bulkResolveButton) {
+                bulkResolveButton.disabled = !hasSelection;
             }
 
-            if (selectAllHome) {
-                const total = homeCheckboxes.length;
-                selectAllHome.checked = total > 0 && checked.length === total;
-                selectAllHome.indeterminate = checked.length > 0 && checked.length < total;
+            if (bulkResolveCount) {
+                bulkResolveCount.textContent = checked.length;
+            }
+
+            if (selectedCountLabel) {
+                selectedCountLabel.textContent = checked.length;
+            }
+
+            if (bulkSelectedAlertsContainer) {
+                bulkSelectedAlertsContainer.innerHTML = Array.from(checked)
+                    .map(item => `<input type="hidden" name="ids[]" value="${item.value}">`)
+                    .join('');
+            }
+
+            if (toggleSelectAll) {
+                const total = checkboxes.length;
+                toggleSelectAll.checked = total > 0 && checked.length === total;
+                toggleSelectAll.indeterminate = checked.length > 0 && checked.length < total;
             }
         }
 
-        if (selectAllHome) {
-            selectAllHome.onchange = function () {
-                homeCheckboxes.forEach(item => item.checked = this.checked);
+        if (selectAllButton) {
+            selectAllButton.onclick = function () {
+                const allChecked = checkboxes.length > 0 && Array.from(checkboxes).every(item => item.checked);
+                checkboxes.forEach(item => {
+                    item.checked = !allChecked;
+                });
                 syncBulkSelectionHome();
             };
         }
 
-        homeCheckboxes.forEach(item => item.addEventListener('change', syncBulkSelectionHome));
+        if (toggleSelectAll) {
+            toggleSelectAll.onchange = function () {
+                checkboxes.forEach(item => {
+                    item.checked = this.checked;
+                });
+                syncBulkSelectionHome();
+            };
+        }
+
+        checkboxes.forEach(item => {
+            item.onchange = syncBulkSelectionHome;
+        });
+
+        if (bulkResolveButton) {
+            bulkResolveButton.onclick = function () {
+                const checked = document.querySelectorAll('.checkbox-home-alert-select:checked');
+                if (checked.length === 0) {
+                    return;
+                }
+
+                syncBulkSelectionHome();
+
+                if (bulkResolveModal && window.bootstrap && window.bootstrap.Modal) {
+                    const modal = typeof window.bootstrap.Modal.getOrCreateInstance === 'function'
+                        ? window.bootstrap.Modal.getOrCreateInstance(bulkResolveModal)
+                        : new window.bootstrap.Modal(bulkResolveModal);
+                    modal.show();
+                }
+            };
+        }
+
         syncBulkSelectionHome();
     }
 
-    document.addEventListener('DOMContentLoaded', function () {
-        bindBulkSelectionHome();
-    });
-
-    // Alternar Tela Cheia (Modo TV)
-    document.getElementById('btnToggleFullscreen')?.addEventListener('click', () => {
-        if (!document.fullscreenElement) {
-            document.documentElement.requestFullscreen().catch(err => console.log(err));
-        } else {
-            if (document.exitFullscreen) {
-                document.exitFullscreen();
-            }
-        }
-    });
-
-    // Inicia polling a cada 15s
-    setInterval(fetchPublicAlerts, 15000);
-    bindQuickAssignEvents();
-
-    // Seleção em lote na tela inicial (Admin)
-    const selectedAlerts = new Set();
-    const selectedCountLabel = document.getElementById('selectedCountLabel');
-    const bulkResolveHomeButton = document.getElementById('bulkResolveHomeButton');
-
-    document.getElementById('toggleSelectAllHome')?.addEventListener('change', function () {
-        const checked = this.checked;
-        document.querySelectorAll('.checkbox-home-alert-select').forEach(checkbox => {
-            checkbox.checked = checked;
-            if (checked) {
-                selectedAlerts.add(checkbox.value);
-            } else {
-                selectedAlerts.delete(checkbox.value);
-            }
-        });
-        updateSelectedCount();
-    });
-
-    document.querySelectorAll('.checkbox-home-alert-select').forEach(checkbox => {
-        checkbox.addEventListener('change', function () {
-            if (this.checked) {
-                selectedAlerts.add(this.value);
-            } else {
-                selectedAlerts.delete(this.value);
-            }
-            updateSelectedCount();
-        });
-    });
-
-    function updateSelectedCount() {
-        const count = selectedAlerts.size;
-        selectedCountLabel.textContent = `${count} alerta(s) selecionado(s)`;
-        bulkResolveHomeButton.disabled = count === 0;
+    const isLoggedIn = @json(auth()->check());
+    if (!isLoggedIn) {
+        setInterval(fetchPublicAlerts, 15000);
     }
 
-    // Resolução em lote
-    document.getElementById('bulkResolveHomeModal')?.addEventListener('show.bs.modal', function () {
-        const count = selectedAlerts.size;
-        document.getElementById('bulkHomeResolveCount').textContent = count;
-
-        const container = document.getElementById('bulkHomeSelectedAlertsContainer');
-        container.innerHTML = '';
-        selectedAlerts.forEach(id => {
-            const alertRow = document.getElementById(`alert-row-${id}`);
-            if (alertRow) {
-                const clone = alertRow.cloneNode(true);
-                clone.removeAttribute('id');
-                clone.querySelectorAll('td:last-child').forEach(td => td.remove());
-                container.appendChild(clone);
-            }
-        });
-    });
-
-    document.getElementById('bulkHomeComentario').addEventListener('input', function () {
-        const submitButton = document.querySelector('#bulkResolveHomeModal .btn-success');
-        submitButton.disabled = this.value.trim() === '';
+    document.addEventListener('DOMContentLoaded', function () {
+        bindQuickAssignEvents();
+        bindBulkSelectionHome();
     });
 </script>
 @endsection

@@ -61,8 +61,8 @@
         const modalEl = document.getElementById('resolveAlertModal');
 
         if (window.bootstrap?.Modal) {
-            const modal = typeof window.bootstrap.Modal.getInstance === 'function'
-                ? window.bootstrap.Modal.getInstance(modalEl) || new window.bootstrap.Modal(modalEl)
+            const modal = typeof window.bootstrap.Modal.getOrCreateInstance === 'function'
+                ? window.bootstrap.Modal.getOrCreateInstance(modalEl)
                 : new window.bootstrap.Modal(modalEl);
             modal.show();
         } else if (window.jQuery?.fn.modal) {
