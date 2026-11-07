@@ -41,6 +41,11 @@ class SendDailyAlertsSummary extends Command
 
         $this->line("Total de alertas pendentes: {$totalGeral} (sem atribuição: {$totalSemAtribuicao})");
 
+        if ($totalGeral === 0) {
+            $this->info('Nenhum alerta pendente. Nenhum e-mail será enviado.');
+            return Command::SUCCESS;
+        }
+
         // 1. Enviar para cada usuário com alertas atribuídos
         $alertsByUser = $pendingAlerts->whereNotNull('atribuido')->groupBy('atribuido');
 
@@ -49,10 +54,10 @@ class SendDailyAlertsSummary extends Command
             if ($user && !empty($user->email)) {
                 try {
                     Mail::to($user->email)->send(new DailyAlertsSummaryMail(
-                        alerts: $userAlerts,
-                        destinatario: $user,
-                        totalGeral: $totalGeral,
-                        totalSemAtribuicao: $totalSemAtribuicao
+                        $userAlerts,
+                        $user,
+                        $totalGeral,
+                        $totalSemAtribuicao
                     ));
                     $this->info("Resumo enviado para {$user->name} ({$user->email}) - {$userAlerts->count()} pendências");
                 } catch (\Throwable $e) {
@@ -71,10 +76,10 @@ class SendDailyAlertsSummary extends Command
                 }
                 try {
                     Mail::to($email)->send(new DailyAlertsSummaryMail(
-                        alerts: $pendingAlerts,
-                        destinatario: null,
-                        totalGeral: $totalGeral,
-                        totalSemAtribuicao: $totalSemAtribuicao
+                        $pendingAlerts,
+                        null,
+                        $totalGeral,
+                        $totalSemAtribuicao
                     ));
                     $this->info("Resumo geral de gestão enviado para: {$email}");
                 } catch (\Throwable $e) {

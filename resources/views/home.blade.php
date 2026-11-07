@@ -75,6 +75,29 @@
         </div>
     </div>
 
+    <!-- Seleção em Lote e Resolução Rápida na Tela Inicial (Admin) -->
+    @if($isAdmin)
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <div class="small text-muted">
+                        <strong id="selectedCountLabel">0</strong> alerta(s) selecionado(s)
+                    </div>
+                    @if($alerts->count() > 0)
+                        <div class="d-flex gap-2 align-items-center flex-wrap">
+                            <button type="button" class="btn btn-sm btn-outline-primary" id="selectAllHomeAlerts">
+                                <i class="fas fa-check-square me-1"></i> Selecionar todos
+                            </button>
+                            <button type="button" class="btn btn-sm btn-success" id="bulkResolveHomeButton" data-bs-toggle="modal" data-bs-target="#bulkResolveHomeModal" disabled>
+                                <i class="fas fa-check-double me-1"></i> Resolver selecionados
+                            </button>
+                        </div>
+                    @endif
+                </div>
+            </div>
+        </div>
+    @endif
+
     <!-- Tabela / Cards de Alertas Pendentes (Público) -->
     <div class="card border-0 shadow-sm" id="alertsTableCard">
         <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
@@ -91,6 +114,9 @@
             <table class="table table-hover align-middle mb-0" id="publicAlertsTable">
                 <thead class="table-light">
                     <tr>
+                        <th style="width: 4%;" class="text-center">
+                            <input type="checkbox" id="toggleSelectAllHome" class="form-check-input" aria-label="Selecionar todos os alertas pendentes">
+                        </th>
                         <th style="width: 25%;">Data da Ocorrência</th>
                         <th style="width: 40%;">Nome do Serviço</th>
                         <th style="width: 20%;">Responsável Atribuído</th>
@@ -102,6 +128,9 @@
                 <tbody id="alertsTableBody">
                     @forelse($alerts as $alert)
                         <tr id="alert-row-{{ $alert->id }}" class="alert-row">
+                            <td class="text-center">
+                                <input type="checkbox" class="form-check-input checkbox-home-alert-select" value="{{ $alert->id }}" aria-label="Selecionar alerta {{ $alert->id }}">
+                            </td>
                             <td>
                                 <div class="d-flex align-items-center gap-2">
                                     <span class="badge bg-warning text-dark p-2 rounded">
@@ -170,7 +199,7 @@
                         </tr>
                     @empty
                         <tr id="emptyRow">
-                            <td colspan="{{ $isAdmin ? 4 : 3 }}" class="text-center py-5">
+                            <td colspan="{{ $isAdmin ? 5 : 4 }}" class="text-center py-5">
                                 <div class="py-4">
                                     <div class="rounded-circle bg-success-subtle text-success d-inline-flex align-items-center justify-content-center mb-3" style="width: 72px; height: 72px;">
                                         <i class="fas fa-check-double fa-2x"></i>
@@ -186,6 +215,37 @@
         </div>
     </div>
 </div>
+
+@if($isAdmin)
+    <div class="modal fade" id="bulkResolveHomeModal" tabindex="-1" aria-labelledby="bulkResolveHomeModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title" id="bulkResolveHomeModalLabel"><i class="fas fa-check-double me-1"></i> Resolver alertas em lote</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                </div>
+                <form method="POST" action="{{ route('alerts.bulk-resolve') }}">
+                    @csrf
+                    <div class="modal-body p-4">
+                        <div class="alert alert-light border mb-3">
+                            <div class="small text-muted">Quantidade selecionada:</div>
+                            <strong id="bulkHomeResolveCount" class="fs-5 text-dark">0</strong>
+                        </div>
+                        <div class="mb-3">
+                            <label for="bulkHomeComentario" class="form-label fw-bold">Comentário da resolução <span class="text-danger">*</span></label>
+                            <textarea name="comentario" id="bulkHomeComentario" rows="4" class="form-control" placeholder="Descreva a ação tomada para resolver todos os alertas selecionados..." required></textarea>
+                        </div>
+                        <div id="bulkHomeSelectedAlertsContainer"></div>
+                    </div>
+                    <div class="modal-footer bg-light">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-success px-4"><i class="fas fa-check me-1"></i> Confirmar resolução em lote</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+@endif
 
 @if($isAdmin)
     @include('partials.resolve-modal')
@@ -405,6 +465,45 @@
         });
     }
 
+    function bindBulkSelectionHome() {
+        const selectAllHome = document.getElementById('toggleSelectAllHome');
+        const homeCheckboxes = document.querySelectorAll('.checkbox-home-alert-select');
+        const bulkHomeResolveButton = document.getElementById('bulkResolveHomeButton');
+        const bulkHomeResolveCount = document.getElementById('bulkHomeResolveCount');
+        const bulkHomeSelectedAlertsContainer = document.getElementById('bulkHomeSelectedAlertsContainer');
+
+        function syncBulkSelectionHome() {
+            const checked = document.querySelectorAll('.checkbox-home-alert-select:checked');
+            const hasSelection = checked.length > 0;
+            bulkHomeResolveButton && (bulkHomeResolveButton.disabled = !hasSelection);
+            bulkHomeResolveCount && (bulkHomeResolveCount.textContent = checked.length);
+
+            if (bulkHomeSelectedAlertsContainer) {
+                bulkHomeSelectedAlertsContainer.innerHTML = Array.from(checked).map(item => `<input type="hidden" name="ids[]" value="${item.value}">`).join('');
+            }
+
+            if (selectAllHome) {
+                const total = homeCheckboxes.length;
+                selectAllHome.checked = total > 0 && checked.length === total;
+                selectAllHome.indeterminate = checked.length > 0 && checked.length < total;
+            }
+        }
+
+        if (selectAllHome) {
+            selectAllHome.onchange = function () {
+                homeCheckboxes.forEach(item => item.checked = this.checked);
+                syncBulkSelectionHome();
+            };
+        }
+
+        homeCheckboxes.forEach(item => item.addEventListener('change', syncBulkSelectionHome));
+        syncBulkSelectionHome();
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        bindBulkSelectionHome();
+    });
+
     // Alternar Tela Cheia (Modo TV)
     document.getElementById('btnToggleFullscreen')?.addEventListener('click', () => {
         if (!document.fullscreenElement) {
@@ -419,6 +518,64 @@
     // Inicia polling a cada 15s
     setInterval(fetchPublicAlerts, 15000);
     bindQuickAssignEvents();
+
+    // Seleção em lote na tela inicial (Admin)
+    const selectedAlerts = new Set();
+    const selectedCountLabel = document.getElementById('selectedCountLabel');
+    const bulkResolveHomeButton = document.getElementById('bulkResolveHomeButton');
+
+    document.getElementById('toggleSelectAllHome')?.addEventListener('change', function () {
+        const checked = this.checked;
+        document.querySelectorAll('.checkbox-home-alert-select').forEach(checkbox => {
+            checkbox.checked = checked;
+            if (checked) {
+                selectedAlerts.add(checkbox.value);
+            } else {
+                selectedAlerts.delete(checkbox.value);
+            }
+        });
+        updateSelectedCount();
+    });
+
+    document.querySelectorAll('.checkbox-home-alert-select').forEach(checkbox => {
+        checkbox.addEventListener('change', function () {
+            if (this.checked) {
+                selectedAlerts.add(this.value);
+            } else {
+                selectedAlerts.delete(this.value);
+            }
+            updateSelectedCount();
+        });
+    });
+
+    function updateSelectedCount() {
+        const count = selectedAlerts.size;
+        selectedCountLabel.textContent = `${count} alerta(s) selecionado(s)`;
+        bulkResolveHomeButton.disabled = count === 0;
+    }
+
+    // Resolução em lote
+    document.getElementById('bulkResolveHomeModal')?.addEventListener('show.bs.modal', function () {
+        const count = selectedAlerts.size;
+        document.getElementById('bulkHomeResolveCount').textContent = count;
+
+        const container = document.getElementById('bulkHomeSelectedAlertsContainer');
+        container.innerHTML = '';
+        selectedAlerts.forEach(id => {
+            const alertRow = document.getElementById(`alert-row-${id}`);
+            if (alertRow) {
+                const clone = alertRow.cloneNode(true);
+                clone.removeAttribute('id');
+                clone.querySelectorAll('td:last-child').forEach(td => td.remove());
+                container.appendChild(clone);
+            }
+        });
+    });
+
+    document.getElementById('bulkHomeComentario').addEventListener('input', function () {
+        const submitButton = document.querySelector('#bulkResolveHomeModal .btn-success');
+        submitButton.disabled = this.value.trim() === '';
+    });
 </script>
 @endsection
 

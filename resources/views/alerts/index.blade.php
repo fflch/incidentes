@@ -9,6 +9,13 @@
         </div>
     @endif
 
+    @if(session('error'))
+        <div class="alert alert-danger alert-dismissible fade show border-0 shadow-sm" role="alert">
+            <i class="fas fa-exclamation-circle me-1"></i> {{ session('error') }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
+        </div>
+    @endif
+
     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
         <div>
             <h1 class="h3 mb-1"><i class="fas fa-exclamation-triangle text-warning me-2"></i>{{ $title }}</h1>
@@ -47,30 +54,52 @@
         </div>
     </div>
 
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div class="small text-muted">
+                    <strong>{{ $alerts->total() }}</strong> alerta(s) pendente(s) nesta página
+                </div>
+                @if($alerts->count() > 0)
+                    <div class="d-flex gap-2 align-items-center flex-wrap">
+                        <button type="button" class="btn btn-sm btn-outline-primary" id="selectAllPendingAlerts">
+                            <i class="fas fa-check-square me-1"></i> Selecionar todos
+                        </button>
+                        <button type="button" class="btn btn-sm btn-success" id="bulkResolveButton" data-bs-toggle="modal" data-bs-target="#bulkResolveModal" disabled>
+                            <i class="fas fa-check-double me-1"></i> Resolver selecionados
+                        </button>
+                    </div>
+                @endif
+            </div>
+        </div>
+    </div>
+
     <!-- Lista de Alertas -->
     <div class="row g-3">
         @forelse($alerts as $alert)
             <div class="col-12">
-                <div class="card border-0 shadow-sm border-start border-4 border-warning">
+                <div class="card border-0 shadow-sm border-start border-4 border-warning alert-card" data-alert-id="{{ $alert->id }}">
                     <div class="card-body p-4">
                         <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
-                            <div>
-                                <div class="d-flex gap-2 align-items-center mb-2 flex-wrap">
-                                    <span class="badge bg-warning text-dark text-uppercase px-3 py-1">
-                                        <i class="fas fa-clock me-1"></i> Pendente
-                                    </span>
-                                    <h4 class="mb-0 fw-bold text-dark">{{ $alert->service_name ?? $alert->type }}</h4>
-                                    <span class="badge bg-light text-secondary border">{{ $alert->type }}</span>
-                                </div>
+                            <div class="d-flex align-items-center gap-3">
+                                <input type="checkbox" class="form-check-input checkbox-alert-select" value="{{ $alert->id }}" aria-label="Selecionar alerta {{ $alert->id }}" style="width: 1.2rem; height: 1.2rem; margin-top: 0.25rem;">
+                                <div>
+                                    <div class="d-flex gap-2 align-items-center mb-2 flex-wrap">
+                                        <span class="badge bg-warning text-dark text-uppercase px-3 py-1">
+                                            <i class="fas fa-clock me-1"></i> Pendente
+                                        </span>
+                                        <h4 class="mb-0 fw-bold text-dark">{{ $alert->service_name ?? $alert->type }}</h4>
+                                        <span class="badge bg-light text-secondary border">{{ $alert->type }}</span>
+                                    </div>
 
-                                <div class="text-muted small mb-3">
-                                    <span class="me-3"><i class="fas fa-fingerprint me-1"></i> ID Externo: <strong>{{ $alert->id_externo }}</strong></span>
-                                    <span class="me-3"><i class="fas fa-calendar-alt me-1"></i> Ocorrência: <strong>{{ $alert->data_ocorrencia?->format('d/m/Y H:i') }}</strong> ({{ $alert->data_ocorrencia?->diffForHumans() }})</span>
+                                    <div class="text-muted small mb-3">
+                                        <span class="me-3"><i class="fas fa-fingerprint me-1"></i> ID Externo: <strong>{{ $alert->id_externo }}</strong></span>
+                                        <span class="me-3"><i class="fas fa-calendar-alt me-1"></i> Ocorrência: <strong>{{ $alert->data_ocorrencia?->format('d/m/Y H:i') }}</strong> ({{ $alert->data_ocorrencia?->diffForHumans() }})</span>
+                                    </div>
                                 </div>
                             </div>
 
                             <div class="d-flex gap-2 flex-wrap align-items-center">
-                                <!-- Botão com Popup Obrigatório de Comentário -->
                                 <button type="button"
                                         class="btn btn-success shadow-sm"
                                         onclick="openResolveModal('{{ $alert->id }}', '{{ addslashes($alert->service_name ?? $alert->type) }}', '{{ addslashes($alert->id_externo) }}')">
@@ -83,12 +112,10 @@
                             </div>
                         </div>
 
-                        <!-- Snippet de mensagem -->
                         <div class="p-3 bg-light rounded border mb-3">
                             <div class="font-monospace small text-dark" style="white-space: pre-wrap; word-break: break-all; max-height: 100px; overflow-y: auto;">{{ Str::limit($alert->mensagem, 350) }}</div>
                         </div>
 
-                        <!-- Seção de Atribuição Melhorada -->
                         <div class="row g-3 align-items-center pt-2 border-top">
                             <div class="col-md-7">
                                 <form method="POST" action="{{ route('alerts.assign-user', $alert) }}" class="d-flex gap-2 align-items-center">
@@ -135,11 +162,83 @@
         @endforelse
     </div>
 
-    <!-- Paginação -->
     <div class="mt-4">
         {{ $alerts->links() }}
     </div>
 </div>
 
+<div class="modal fade" id="bulkResolveModal" tabindex="-1" aria-labelledby="bulkResolveModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title" id="bulkResolveModalLabel"><i class="fas fa-check-double me-1"></i> Resolver alertas em lote</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <form method="POST" action="{{ route('alerts.bulk-resolve') }}">
+                @csrf
+                <div class="modal-body p-4">
+                    <div class="alert alert-light border mb-3">
+                        <div class="small text-muted">Quantidade selecionada:</div>
+                        <strong id="bulkResolveCount" class="fs-5 text-dark">0</strong>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="bulkComentario" class="form-label fw-bold">Comentário da resolução <span class="text-danger">*</span></label>
+                        <textarea name="comentario" id="bulkComentario" rows="4" class="form-control" placeholder="Descreva a ação tomada para resolver todos os alertas selecionados..." required></textarea>
+                    </div>
+
+                    <div id="bulkSelectedAlertsContainer"></div>
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-success px-4"><i class="fas fa-check me-1"></i> Confirmar resolução em lote</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 @include('partials.resolve-modal')
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const selectAllButton = document.getElementById('selectAllPendingAlerts');
+        const bulkResolveButton = document.getElementById('bulkResolveButton');
+        const checkboxAlerts = document.querySelectorAll('.checkbox-alert-select');
+        const bulkSelectedAlertsContainer = document.getElementById('bulkSelectedAlertsContainer');
+        const bulkResolveCount = document.getElementById('bulkResolveCount');
+
+        function updateBulkSelectionState() {
+            const checked = document.querySelectorAll('.checkbox-alert-select:checked');
+            const hasSelection = checked.length > 0;
+            bulkResolveButton.disabled = !hasSelection;
+            bulkResolveCount.textContent = checked.length;
+
+            let html = '';
+            checked.forEach(item => {
+                html += `<input type="hidden" name="ids[]" value="${item.value}">`;
+            });
+            bulkSelectedAlertsContainer.innerHTML = html;
+        }
+
+        if (selectAllButton) {
+            selectAllButton.addEventListener('click', function () {
+                const allChecked = document.querySelectorAll('.checkbox-alert-select');
+                const allSelected = document.querySelectorAll('.checkbox-alert-select:checked').length === allChecked.length;
+
+                allChecked.forEach(item => {
+                    item.checked = !allSelected;
+                });
+
+                updateBulkSelectionState();
+            });
+        }
+
+        checkboxAlerts.forEach(item => {
+            item.addEventListener('change', updateBulkSelectionState);
+        });
+
+        updateBulkSelectionState();
+    });
+</script>
 @endsection
