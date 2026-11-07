@@ -91,8 +91,15 @@ class AlertController extends Controller
         $payload['comentario'] = $payload['comentario'] ?? null;
         $payload['service_name'] = $payload['service_name'] ?? null;
         $payload['atribuido'] = $payload['atribuido'] ?? null;
-        $payload['resolvido_por_id'] = $payload['status_resolucao'] === 'resolvido' ? auth()->id() : null;
-        $payload['resolvido_em'] = $payload['status_resolucao'] === 'resolvido' ? now() : null;
+
+        if ($payload['status_resolucao'] === 'resolvido') {
+            $payload['atribuido'] = $payload['atribuido'] ?? auth()->id();
+            $payload['resolvido_por_id'] = auth()->id();
+            $payload['resolvido_em'] = now();
+        } else {
+            $payload['resolvido_por_id'] = null;
+            $payload['resolvido_em'] = null;
+        }
 
         $alert = Alert::create($payload);
 
@@ -136,11 +143,11 @@ class AlertController extends Controller
         if ($request->filled('status_resolucao')) {
             $alert->status_resolucao = $request->status_resolucao;
             if ($request->status_resolucao === 'resolvido') {
-                if (empty($alert->resolvido_por_id)) {
-                    $alert->resolvido_por_id = auth()->id();
-                }
-                if (empty($alert->resolvido_em)) {
-                    $alert->resolvido_em = now();
+                $alert->resolvido_por_id = auth()->id();
+                $alert->resolvido_em = now();
+                $alert->atribuido = $alert->atribuido ?: auth()->id();
+                if ($alert->atribuido !== auth()->id()) {
+                    $alert->atribuido = auth()->id();
                 }
             }
 
@@ -180,11 +187,6 @@ class AlertController extends Controller
      */
     public function resolve(Request $request, Alert $alert)
     {
-        // Autorização: deve ser admin ou a pessoa atribuída
-        if (!Gate::allows('admin') && $alert->atribuido !== auth()->id()) {
-            abort(403, 'Ação não autorizada.');
-        }
-
         $validated = $request->validate([
             'comentario' => ['required', 'string', 'min:3'],
         ], [
@@ -192,10 +194,12 @@ class AlertController extends Controller
             'comentario.min' => 'O comentário deve conter pelo menos 3 caracteres.',
         ]);
 
+        $userId = auth()->id();
         $alert->status_resolucao = 'resolvido';
         $alert->comentario = trim($validated['comentario']);
-        $alert->resolvido_por_id = auth()->id();
+        $alert->resolvido_por_id = $userId;
         $alert->resolvido_em = now();
+        $alert->atribuido = $alert->atribuido == $userId ? $alert->atribuido : $userId;
         $alert->save();
 
         if ($request->expectsJson() || $request->ajax()) {
@@ -251,10 +255,48 @@ class AlertController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Atribuição atualizada com sucesso.',
-                'atribuido_nome' => $alert->atribuidoUser?->name ?? 'Não atribuído',
+                'atribuido_nome' => $alert->atribuidoUser ? $alert->atribuidoUser->name : 'Não atribuído',
             ]);
         }
 
         return back()->with('success', 'Atribuição atualizada com sucesso.');
+    }
+
+    /**
+     * Ação em lote para resolver alertas com comentário único
+     */
+    public function bulkResolve(Request $request)
+    {
+        Gate::authorize('admin');
+
+        $validated = $request->validate([
+            'comentario' => ['required', 'string', 'min:3'],
+            'ids' => ['required', 'array'],
+            'ids.*' => ['integer', 'exists:alerts,id'],
+        ], [
+            'comentario.required' => 'É obrigatório informar um comentário para resolver os alertas em lote.',
+            'comentario.min' => 'O comentário deve conter pelo menos 3 caracteres.',
+            'ids.required' => 'Selecione pelo menos um alerta para resolver em lote.',
+        ]);
+
+        $userId = auth()->id();
+        $alerts = Alert::whereIn('id', $validated['ids'])
+            ->where('status_resolucao', 'pendente')
+            ->get();
+
+        if ($alerts->isEmpty()) {
+            return back()->with('error', 'Nenhum alerta pendente foi encontrado para resolver em lote.');
+        }
+
+        foreach ($alerts as $alert) {
+            $alert->status_resolucao = 'resolvido';
+            $alert->comentario = trim($validated['comentario']);
+            $alert->resolvido_por_id = $userId;
+            $alert->resolvido_em = now();
+            $alert->atribuido = $alert->atribuido == $userId ? $alert->atribuido : $userId;
+            $alert->save();
+        }
+
+        return back()->with('success', 'Resolvidos ' . $alerts->count() . ' alertas em lote com sucesso.');
     }
 }

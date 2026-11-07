@@ -49,5 +49,8 @@ Route::middleware(['auth'])->group(function () {
 
         // Regras de atribuição automática
         Route::resource('assignment-rules', AssignmentRuleController::class);
+
+        // Resolução em lote
+        Route::post('/alerts/bulk-resolve', [AlertController::class, 'bulkResolve'])->name('alerts.bulk-resolve');
     });
 });
