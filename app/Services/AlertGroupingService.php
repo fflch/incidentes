@@ -126,7 +126,7 @@ class AlertGroupingService
     {
         $text = preg_replace('/\s+/', ' ', trim($text));
         $text = strtolower($text);
-        $text = preg_replace('/[^a-z0-9\s\-_:./\\]+/u', ' ', $text);
+        $text = preg_replace('/[^a-z0-9\s\-_:.]+/u', ' ', $text);
         $text = preg_replace('/\s+/', ' ', trim((string) $text));
 
         return trim((string) $text);
