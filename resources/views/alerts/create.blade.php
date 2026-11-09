@@ -79,6 +79,19 @@
                         </select>
                     </div>
 
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold">Alerta relacionado</label>
+                        <select name="parent_id" class="form-select">
+                            <option value="">Nenhum (alerta principal)</option>
+                            @foreach($relatedAlerts as $relatedAlert)
+                                <option value="{{ $relatedAlert->id }}" {{ old('parent_id') == $relatedAlert->id ? 'selected' : '' }}>
+                                    #{{ $relatedAlert->id }} · {{ $relatedAlert->service_name ?? $relatedAlert->type }} · {{ $relatedAlert->status_resolucao }}
+                                </option>
+                            @endforeach
+                        </select>
+                        <div class="form-text small">Se este alerta for uma repetição do mesmo problema, selecione o registro pai.</div>
+                    </div>
+
                     <div class="col-12">
                         <label class="form-label fw-bold">Mensagem do Erro / Logs <span class="text-danger">*</span></label>
                         <textarea name="mensagem" rows="6" class="form-control font-monospace" placeholder="Cole a mensagem de erro ou logs relevantes..." required>{{ old('mensagem') }}</textarea>

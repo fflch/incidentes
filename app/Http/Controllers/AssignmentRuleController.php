@@ -80,11 +80,10 @@ class AssignmentRuleController extends Controller
         if ($request->boolean('apply_to_pending')) {
             $pendingAlerts = Alert::where('status_resolucao', 'pendente')
                 ->whereNull('atribuido')
-                ->where(function ($q) use ($rule) {
-                    $q->where('service_name', $rule->service_name)
-                      ->orWhereRaw('LOWER(service_name) = ?', [mb_strtolower($rule->service_name)]);
-                })
-                ->get();
+                ->get()
+                ->filter(function ($alert) use ($rule) {
+                    return $rule->matchesServiceName($alert->service_name ?? $alert->type ?? '');
+                });
 
             foreach ($pendingAlerts as $alert) {
                 $alert->atribuido = $rule->user_id;

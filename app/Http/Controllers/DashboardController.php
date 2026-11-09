@@ -18,13 +18,13 @@ class DashboardController extends Controller
     {
         Gate::authorize('admin');
 
-        $totalAlertas = Alert::count();
-        $pendentes = Alert::where('status_resolucao', 'pendente')->count();
-        $resolvidos = Alert::where('status_resolucao', 'resolvido')->count();
+        $totalAlertas = Alert::whereNull('parent_id')->count();
+        $pendentes = Alert::whereNull('parent_id')->where('status_resolucao', 'pendente')->count();
+        $resolvidos = Alert::whereNull('parent_id')->where('status_resolucao', 'resolvido')->count();
         $taxaGeralResolucao = $totalAlertas > 0 ? round(($resolvidos / $totalAlertas) * 100, 1) : 0;
 
         // Tempo médio de resolução (dos alertas resolvidos)
-        $alertasResolvidos = Alert::where('status_resolucao', 'resolvido')->get();
+        $alertasResolvidos = Alert::whereNull('parent_id')->where('status_resolucao', 'resolvido')->get();
         $temposMinutos = [];
         foreach ($alertasResolvidos as $alerta) {
             $minutos = $alerta->tempoResolucaoMinutos();
@@ -50,21 +50,21 @@ class DashboardController extends Controller
         }
 
         // Estatísticas de Não Atribuídos
-        $naoAtribuidosPendentes = Alert::where('status_resolucao', 'pendente')->whereNull('atribuido')->count();
-        $naoAtribuidosResolvidos = Alert::where('status_resolucao', 'resolvido')->whereNull('atribuido')->count();
+        $naoAtribuidosPendentes = Alert::whereNull('parent_id')->where('status_resolucao', 'pendente')->whereNull('atribuido')->count();
+        $naoAtribuidosResolvidos = Alert::whereNull('parent_id')->where('status_resolucao', 'resolvido')->whereNull('atribuido')->count();
         $naoAtribuidosTotal = $naoAtribuidosPendentes + $naoAtribuidosResolvidos;
 
         // Estatísticas por Pessoa Atribuída
         $users = User::getAdmins();
         $userStats = [];
         foreach ($users as $user) {
-            $userPendentes = Alert::where('atribuido', $user->id)->where('status_resolucao', 'pendente')->count();
-            $userResolvidos = Alert::where('atribuido', $user->id)->where('status_resolucao', 'resolvido')->count();
+            $userPendentes = Alert::whereNull('parent_id')->where('atribuido', $user->id)->where('status_resolucao', 'pendente')->count();
+            $userResolvidos = Alert::whereNull('parent_id')->where('atribuido', $user->id)->where('status_resolucao', 'resolvido')->count();
             $userTotal = $userPendentes + $userResolvidos;
             $userTaxa = $userTotal > 0 ? round(($userResolvidos / $userTotal) * 100, 1) : 0;
 
             // Tempo médio individual
-            $userAlertasResolvidos = Alert::where('atribuido', $user->id)->where('status_resolucao', 'resolvido')->get();
+            $userAlertasResolvidos = Alert::whereNull('parent_id')->where('atribuido', $user->id)->where('status_resolucao', 'resolvido')->get();
             $userTempos = [];
             foreach ($userAlertasResolvidos as $al) {
                 $m = $al->tempoResolucaoMinutos();
@@ -101,6 +101,7 @@ class DashboardController extends Controller
 
         // Gráfico Mensal
         $monthly = Alert::query()
+            ->whereNull('parent_id')
             ->select(['data_ocorrencia', 'status_resolucao'])
             ->get()
             ->groupBy(function ($alert) {
@@ -119,6 +120,7 @@ class DashboardController extends Controller
 
         // Top 5 serviços com incidentes
         $topServices = Alert::query()
+            ->whereNull('parent_id')
             ->selectRaw('COALESCE(service_name, type) as servico, count(*) as total, sum(case when status_resolucao = "pendente" then 1 else 0 end) as pendentes')
             ->groupBy('servico')
             ->orderByDesc('total')

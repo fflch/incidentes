@@ -21,6 +21,7 @@ class AlertController extends Controller
     {
         $alerts = Alert::query()
             ->with(['atribuidoUser', 'resolvidoPor'])
+            ->whereNull('parent_id')
             ->when($request->filled('search'), function ($query) use ($request) {
                 $query->where(function ($q) use ($request) {
                     $q->where('id_externo', 'like', '%' . $request->search . '%')
@@ -45,6 +46,7 @@ class AlertController extends Controller
     {
         $alerts = Alert::query()
             ->with(['atribuidoUser', 'resolvidoPor'])
+            ->whereNull('parent_id')
             ->when($request->filled('search'), function ($query) use ($request) {
                 $query->where(function ($q) use ($request) {
                     $q->where('id_externo', 'like', '%' . $request->search . '%')
@@ -78,9 +80,16 @@ class AlertController extends Controller
             ->orderBy('service_name')
             ->pluck('service_name');
 
+        $relatedAlerts = Alert::query()
+            ->whereNull('parent_id')
+            ->orderByDesc('data_ocorrencia')
+            ->limit(200)
+            ->get();
+
         return view('alerts.create', [
             'users' => User::getAdmins(),
             'suggestedServices' => $suggestedServices,
+            'relatedAlerts' => $relatedAlerts,
         ]);
     }
 
@@ -128,10 +137,18 @@ class AlertController extends Controller
             ->orderBy('service_name')
             ->pluck('service_name');
 
+        $relatedAlerts = Alert::query()
+            ->whereNull('parent_id')
+            ->whereKeyNot($alert->id)
+            ->orderByDesc('data_ocorrencia')
+            ->limit(200)
+            ->get();
+
         return view('alerts.edit', [
             'alert' => $alert->load(['atribuidoUser', 'resolvidoPor']),
             'users' => User::getAdmins(),
             'suggestedServices' => $suggestedServices,
+            'relatedAlerts' => $relatedAlerts,
         ]);
     }
 
@@ -155,6 +172,10 @@ class AlertController extends Controller
                 $alert->resolvido_por_id = null;
                 $alert->resolvido_em = null;
             }
+        }
+
+        if ($request->has('parent_id')) {
+            $alert->parent_id = $request->parent_id ?: null;
         }
 
         if ($request->filled('comentario')) {
@@ -195,18 +216,14 @@ class AlertController extends Controller
         ]);
 
         $userId = auth()->id();
-        $alert->status_resolucao = 'resolvido';
-        $alert->comentario = trim($validated['comentario']);
-        $alert->resolvido_por_id = $userId;
-        $alert->resolvido_em = now();
-        $alert->atribuido = $alert->atribuido == $userId ? $alert->atribuido : $userId;
-        $alert->save();
+        $root = $alert->groupRoot();
+        $root->resolveGroup(trim($validated['comentario']), $userId);
 
         if ($request->expectsJson() || $request->ajax()) {
             return response()->json([
                 'success' => true,
                 'message' => 'Alerta marcado como resolvido com sucesso.',
-                'alert' => $alert,
+                'alert' => $root,
             ]);
         }
 
@@ -220,10 +237,7 @@ class AlertController extends Controller
     {
         Gate::authorize('admin');
 
-        $alert->status_resolucao = 'pendente';
-        $alert->resolvido_por_id = null;
-        $alert->resolvido_em = null;
-        $alert->save();
+        $alert->groupRoot()->reopenGroup();
 
         return back()->with('success', 'Alerta reaberto com sucesso.');
     }
@@ -280,23 +294,22 @@ class AlertController extends Controller
         ]);
 
         $userId = auth()->id();
-        $alerts = Alert::whereIn('id', $validated['ids'])
-            ->where('status_resolucao', 'pendente')
-            ->get();
+        $roots = collect($validated['ids'])
+            ->map(function ($id) {
+                $alert = Alert::find($id);
+                return $alert ? $alert->groupRoot() : null;
+            })
+            ->filter()
+            ->unique('id');
 
-        if ($alerts->isEmpty()) {
+        if ($roots->isEmpty()) {
             return back()->with('error', 'Nenhum alerta pendente foi encontrado para resolver em lote.');
         }
 
-        foreach ($alerts as $alert) {
-            $alert->status_resolucao = 'resolvido';
-            $alert->comentario = trim($validated['comentario']);
-            $alert->resolvido_por_id = $userId;
-            $alert->resolvido_em = now();
-            $alert->atribuido = $alert->atribuido == $userId ? $alert->atribuido : $userId;
-            $alert->save();
+        foreach ($roots as $root) {
+            $root->resolveGroup(trim($validated['comentario']), $userId);
         }
 
-        return back()->with('success', 'Resolvidos ' . $alerts->count() . ' alertas em lote com sucesso.');
+        return back()->with('success', 'Resolvidos ' . $roots->count() . ' grupo(s) de alertas em lote com sucesso.');
     }
 }

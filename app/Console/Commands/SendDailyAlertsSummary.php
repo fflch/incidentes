@@ -32,6 +32,7 @@ class SendDailyAlertsSummary extends Command
         $this->info('Iniciando envio do resumo diário de alertas pendentes...');
 
         $pendingAlerts = Alert::with('atribuidoUser')
+            ->whereNull('parent_id')
             ->where('status_resolucao', 'pendente')
             ->orderByDesc('data_ocorrencia')
             ->get();

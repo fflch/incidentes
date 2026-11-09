@@ -44,7 +44,7 @@
                         @endforeach
                     </datalist>
                     <div class="form-text">
-                        Você pode digitar qualquer nome de serviço ou selecionar uma das sugestões baseadas nos alertas já registrados.
+                        Você pode digitar um serviço exato ou um prefixo com a sintaxe <strong>portal-*</strong> para aplicar a regra a todos os serviços que comecem com essa string.
                     </div>
                     @error('service_name')
                         <div class="invalid-feedback">{{ $message }}</div>

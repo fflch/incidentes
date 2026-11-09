@@ -19,6 +19,7 @@ class Alert extends Model
         'atribuido',
         'resolvido_por_id',
         'resolvido_em',
+        'parent_id',
     ];
 
     protected $casts = [
@@ -44,6 +45,16 @@ class Alert extends Model
         });
     }
 
+    public function parent()
+    {
+        return $this->belongsTo(self::class, 'parent_id');
+    }
+
+    public function children()
+    {
+        return $this->hasMany(self::class, 'parent_id');
+    }
+
     public function atribuidoUser()
     {
         return $this->belongsTo(User::class, 'atribuido');
@@ -54,14 +65,84 @@ class Alert extends Model
         return $this->belongsTo(User::class, 'resolvido_por_id');
     }
 
+    public function scopeRoot(Builder $query): Builder
+    {
+        return $query->whereNull('parent_id');
+    }
+
     public function scopePendente(Builder $query): Builder
     {
-        return $query->where('status_resolucao', 'pendente');
+        return $query->where('status_resolucao', 'pendente')->whereNull('parent_id');
     }
 
     public function scopeResolvido(Builder $query): Builder
     {
-        return $query->where('status_resolucao', 'resolvido');
+        return $query->where('status_resolucao', 'resolvido')->whereNull('parent_id');
+    }
+
+    public function isRoot(): bool
+    {
+        return is_null($this->parent_id);
+    }
+
+    public function groupRoot(): self
+    {
+        $parent = $this->parent;
+
+        if ($parent) {
+            return $parent->groupRoot();
+        }
+
+        return $this;
+    }
+
+    public function groupSize(): int
+    {
+        $root = $this->groupRoot();
+
+        return (int) $root->children()->count() + 1;
+    }
+
+    public function repetitionCount(): int
+    {
+        return max(0, $this->groupSize() - 1);
+    }
+
+    public function relatedAlerts()
+    {
+        $root = $this->groupRoot();
+
+        if ($this->isRoot()) {
+            return $root->children()->orderByDesc('data_ocorrencia')->get();
+        }
+
+        return $root->children()->whereKeyNot($this->id)->orderByDesc('data_ocorrencia')->get();
+    }
+
+    public function resolveGroup(string $comentario, int $userId): void
+    {
+        $root = $this->groupRoot();
+
+        foreach ($root->children()->get()->merge([$root]) as $alert) {
+            $alert->status_resolucao = 'resolvido';
+            $alert->comentario = trim($comentario);
+            $alert->resolvido_por_id = $userId;
+            $alert->resolvido_em = now();
+            $alert->atribuido = $alert->atribuido ?? $userId;
+            $alert->save();
+        }
+    }
+
+    public function reopenGroup(): void
+    {
+        $root = $this->groupRoot();
+
+        foreach ($root->children()->get()->merge([$root]) as $alert) {
+            $alert->status_resolucao = 'pendente';
+            $alert->resolvido_por_id = null;
+            $alert->resolvido_em = null;
+            $alert->save();
+        }
     }
 
     public function dataResolucao(): ?Carbon

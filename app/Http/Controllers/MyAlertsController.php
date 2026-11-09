@@ -19,6 +19,7 @@ class MyAlertsController extends Controller
 
         $query = Alert::query()
             ->with(['resolvidoPor', 'atribuidoUser'])
+            ->whereNull('parent_id')
             ->where('atribuido', $userId);
 
         if ($statusFilter === 'pendente') {
@@ -39,8 +40,8 @@ class MyAlertsController extends Controller
 
         $alerts = $query->orderByDesc('data_ocorrencia')->paginate(15)->withQueryString();
 
-        $countPendentes = Alert::where('atribuido', $userId)->where('status_resolucao', 'pendente')->count();
-        $countResolvidos = Alert::where('atribuido', $userId)->where('status_resolucao', 'resolvido')->count();
+        $countPendentes = Alert::whereNull('parent_id')->where('atribuido', $userId)->where('status_resolucao', 'pendente')->count();
+        $countResolvidos = Alert::whereNull('parent_id')->where('atribuido', $userId)->where('status_resolucao', 'resolvido')->count();
         $countTotal = $countPendentes + $countResolvidos;
 
         return view('alerts.my', [

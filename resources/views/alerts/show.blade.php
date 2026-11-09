@@ -50,8 +50,26 @@
                         <dt class="col-sm-4 text-muted">Serviço</dt>
                         <dd class="col-sm-8 fw-semibold text-dark">{{ $alert->service_name ?? '—' }}</dd>
 
+                        @if(!$alert->isRoot())
+                            <dt class="col-sm-4 text-muted">Alerta Pai</dt>
+                            <dd class="col-sm-8">
+                                <a href="{{ route('alerts.show', $alert->parent) }}" class="text-decoration-none fw-semibold">
+                                    #{{ $alert->parent_id }}
+                                </a>
+                            </dd>
+                        @endif
+
+                        @if($alert->isRoot())
+                            <dt class="col-sm-4 text-muted">Repetições</dt>
+                            <dd class="col-sm-8">
+                                <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-2 py-1">
+                                    {{ $alert->repetitionCount() }} alertas relacionados
+                                </span>
+                            </dd>
+                        @endif
+
                         <dt class="col-sm-4 text-muted">Data da Ocorrência</dt>
-                        <dd class="col-sm-8">{{ $alert->data_ocorrencia?->format('d/m/Y H:i:s') }} ({{ $alert->data_ocorrencia?->diffForHumans() }})</dd>
+                        <dd class="col-sm-8">{{ $alert->data_ocorrencia?->format('d/m/Y H:i:s') }} ({{ $alert->data_ocorricao?->diffForHumans() }})</dd>
 
                         <dt class="col-sm-4 text-muted">Responsável Atribuído</dt>
                         <dd class="col-sm-8">
@@ -174,6 +192,29 @@
             </form>
         </div>
     @endcan
+
+    @if($alert->isRoot() && $alert->children()->exists())
+        <div class="card border-0 shadow-sm mt-4">
+            <div class="card-header bg-white py-3">
+                <h5 class="card-title mb-0 fw-bold"><i class="fas fa-link text-primary me-2"></i>Alertas relacionados</h5>
+            </div>
+            <div class="card-body p-4">
+                <div class="list-group">
+                    @foreach($alert->children()->orderByDesc('data_ocorrencia')->get() as $related)
+                        <a href="{{ route('alerts.show', $related) }}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                            <div>
+                                <div class="fw-semibold">#{{ $related->id }} · {{ $related->service_name ?? $related->type }}</div>
+                                <small class="text-muted">{{ $related->data_ocorrencia?->format('d/m/Y H:i') }} · {{ $related->status_resolucao }}</small>
+                            </div>
+                            <span class="badge {{ $related->status_resolucao === 'pendente' ? 'bg-warning text-dark' : 'bg-success text-white' }}">
+                                {{ $related->status_resolucao }}
+                            </span>
+                        </a>
+                    @endforeach
+                </div>
+            </div>
+        </div>
+    @endif
 </div>
 
 @include('partials.resolve-modal')

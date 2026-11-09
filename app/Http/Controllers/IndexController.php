@@ -21,6 +21,7 @@ class IndexController extends Controller
         }
 
         $alerts = Alert::with('atribuidoUser')
+            ->whereNull('parent_id')
             ->where('status_resolucao', 'pendente')
             ->orderByDesc('data_ocorrencia')
             ->get();
@@ -43,6 +44,7 @@ class IndexController extends Controller
     public function publicAlertsJson()
     {
         $alerts = Alert::with('atribuidoUser')
+            ->whereNull('parent_id')
             ->where('status_resolucao', 'pendente')
             ->orderByDesc('data_ocorrencia')
             ->get()

@@ -22,6 +22,7 @@ class AlertRequest extends FormRequest
             'status_resolucao' => ['nullable', 'in:pendente,resolvido'],
             'comentario' => ['nullable', 'string', 'required_if:status_resolucao,resolvido'],
             'atribuido' => ['nullable', 'exists:users,id'],
+            'parent_id' => ['nullable', 'exists:alerts,id'],
             'resolvido_por_id' => ['nullable', 'exists:users,id'],
         ];
     }
