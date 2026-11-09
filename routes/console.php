@@ -9,4 +9,4 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command('alerts:daily-summary')->dailyAt('08:00');
-Schedule::command('alerts:group-similar --threshold=90')->everyFiveMinutes();
+Schedule::command('alerts:group-similar --threshold=80')->everyFiveMinutes();

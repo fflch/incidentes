@@ -8,7 +8,7 @@ use Illuminate\Console\Command;
 
 class GroupSimilarAlerts extends Command
 {
-    protected $signature = 'alerts:group-similar {--threshold=90}';
+    protected $signature = 'alerts:group-similar {--threshold=80}';
 
     protected $description = 'Agrupa alertas pendentes e resolvidos similares pelo serviço e texto da mensagem.';
 

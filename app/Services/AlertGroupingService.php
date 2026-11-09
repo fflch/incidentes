@@ -7,7 +7,7 @@ use Illuminate\Support\Collection;
 
 class AlertGroupingService
 {
-    public const DEFAULT_SIMILARITY_THRESHOLD = 90;
+    public const DEFAULT_SIMILARITY_THRESHOLD = 80;
 
     public function groupPendingAlerts(?float $threshold = null): int
     {
@@ -108,9 +108,18 @@ class AlertGroupingService
             return 0.0;
         }
 
-        similar_text($textA, $textB, $percent);
+        if (strtolower($textA) === strtolower($textB)) {
+            return 100.0;
+        }
 
-        return (float) $percent;
+        similar_text($textA, $textB, $percent);
+        $percent = (float) $percent;
+
+        $commonWordsA = $this->wordOverlapScore($textA, $textB);
+        $commonWordsB = $this->wordOverlapScore($textB, $textA);
+        $wordOverlap = max($commonWordsA, $commonWordsB);
+
+        return max($percent, $wordOverlap * 100);
     }
 
     protected function normalizeText(string $text): string
@@ -118,7 +127,31 @@ class AlertGroupingService
         $text = preg_replace('/\s+/', ' ', trim($text));
         $text = strtolower($text);
         $text = preg_replace('/[^a-z0-9\s\-_:./\\]+/u', ' ', $text);
+        $text = preg_replace('/\s+/', ' ', trim((string) $text));
 
         return trim((string) $text);
+    }
+
+    protected function wordOverlapScore(string $textA, string $textB): float
+    {
+        $wordsA = array_filter(array_unique(preg_split('/\s+/', $textA) ?: []));
+        $wordsB = array_filter(array_unique(preg_split('/\s+/', $textB) ?: []));
+
+        if ($wordsA === [] || $wordsB === []) {
+            return 0.0;
+        }
+
+        $matches = 0;
+        foreach ($wordsA as $wordA) {
+            foreach ($wordsB as $wordB) {
+                if ($wordA === $wordB) {
+                    $matches++;
+                    break;
+                }
+            }
+        }
+
+        $total = count($wordsA);
+        return $total > 0 ? min(1.0, $matches / $total) : 0.0;
     }
 }
