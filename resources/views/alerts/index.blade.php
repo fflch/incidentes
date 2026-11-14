@@ -9,12 +9,6 @@
         </div>
     @endif
 
-    @if(session('error'))
-        <div class="alert alert-danger alert-dismissible fade show border-0 shadow-sm" role="alert">
-            <i class="fas fa-exclamation-circle me-1"></i> {{ session('error') }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
-        </div>
-    @endif
 
     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
         <div>
@@ -106,6 +100,15 @@
                                     <i class="fas fa-check me-1"></i> Marcar como Resolvido
                                 </button>
 
+                                @if((int) $alert->atribuido !== (int) auth()->id())
+                                    <form method="POST" action="{{ route('alerts.assign-me', $alert) }}">
+                                        @csrf
+                                        <button type="submit" class="btn btn-sm btn-outline-primary">
+                                            <i class="fas fa-hand-paper me-1"></i> Atribuir a mim
+                                        </button>
+                                    </form>
+                                @endif
+
                                 <a href="{{ route('alerts.show', $alert) }}" class="btn btn-sm btn-outline-primary">
                                     <i class="fas fa-expand-alt me-1"></i> Detalhes
                                 </a>
@@ -184,7 +187,7 @@
 
                     <div class="mb-3">
                         <label for="bulkComentario" class="form-label fw-bold">Comentário da resolução <span class="text-danger">*</span></label>
-                        <textarea name="comentario" id="bulkComentario" rows="4" class="form-control" placeholder="Descreva a ação tomada para resolver todos os alertas selecionados..." required></textarea>
+                        <textarea name="comentario" id="bulkComentario" rows="4" class="form-control" placeholder="Descreva a ação tomada para resolver todos os alertas selecionados..." required minlength="3"></textarea>
                     </div>
 
                     <div id="bulkSelectedAlertsContainer"></div>

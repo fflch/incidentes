@@ -26,7 +26,7 @@
                                   rows="4"
                                   class="form-control"
                                   placeholder="Descreva o que foi feito para resolver o problema, correções aplicadas, causa raiz, etc..."
-                                  required></textarea>
+                                  required minlength="3"></textarea>
                         <div class="invalid-feedback" id="modalComentarioFeedback">
                             O comentário é obrigatório para registrar a resolução do incidente.
                         </div>

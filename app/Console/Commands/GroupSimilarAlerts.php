@@ -10,7 +10,7 @@ class GroupSimilarAlerts extends Command
 {
     protected $signature = 'alerts:group-similar {--threshold=80}';
 
-    protected $description = 'Agrupa alertas pendentes e resolvidos similares pelo serviço e texto da mensagem.';
+    protected $description = 'Agrupa alertas similares (mesmo serviço e texto parecido) sob o alerta mais antigo do grupo.';
 
     public function handle(AlertGroupingService $groupingService): int
     {
@@ -19,6 +19,11 @@ class GroupSimilarAlerts extends Command
         $rootAlerts = Alert::query()->whereNull('parent_id')->count();
         $pendingBefore = Alert::query()->whereNull('parent_id')->where('status_resolucao', 'pendente')->count();
         $resolvedBefore = Alert::query()->whereNull('parent_id')->where('status_resolucao', 'resolvido')->count();
+
+        $fixedRoots = $groupingService->normalizeGroups();
+        if ($fixedRoots > 0) {
+            $this->warn("{$fixedRoots} grupo(s) tiveram a raiz corrigida para o alerta mais antigo.");
+        }
 
         $groupedPending = $groupingService->groupPendingAlerts($threshold);
         $groupedResolved = $groupingService->groupResolvedAlerts($threshold);

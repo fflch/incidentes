@@ -24,6 +24,11 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/alerts/{alert}/resolve', [AlertController::class, 'resolve'])->name('alerts.resolve');
     Route::post('/alerts/{alert}/reopen', [AlertController::class, 'reopen'])->name('alerts.reopen');
 
+    // Detalhes, comentários e "atribuir a mim" (admin ou responsável pelo alerta)
+    Route::get('/alerts/{alert}', [AlertController::class, 'show'])->whereNumber('alert')->name('alerts.show');
+    Route::post('/alerts/{alert}/assign-me', [AlertController::class, 'assignToMe'])->name('alerts.assign-me');
+    Route::post('/alerts/{alert}/comments', [AlertController::class, 'storeComment'])->name('alerts.comments.store');
+
     // -------------------------------------------------------------
     // Rotas de Administrador (somente admins)
     // -------------------------------------------------------------
@@ -39,7 +44,6 @@ Route::middleware(['auth'])->group(function () {
         // CRUD Alertas
         Route::get('/alerts/create', [AlertController::class, 'create'])->name('alerts.create');
         Route::post('/alerts', [AlertController::class, 'store'])->name('alerts.store');
-        Route::get('/alerts/{alert}', [AlertController::class, 'show'])->name('alerts.show');
         Route::get('/alerts/{alert}/edit', [AlertController::class, 'edit'])->name('alerts.edit');
         Route::patch('/alerts/{alert}', [AlertController::class, 'update'])->name('alerts.update');
         Route::delete('/alerts/{alert}', [AlertController::class, 'destroy'])->name('alerts.destroy');

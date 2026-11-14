@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Alert;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 
@@ -20,19 +21,12 @@ class IndexController extends Controller
             return $this->publicAlertsJson();
         }
 
-        $alerts = Alert::with('atribuidoUser')
-            ->whereNull('parent_id')
-            ->where('status_resolucao', 'pendente')
-            ->orderByDesc('data_ocorrencia')
-            ->get();
-
         $isAdmin = auth()->check() && Gate::allows('admin');
-        $users = $isAdmin ? User::getAdmins() : collect();
 
         return view('home', [
-            'alerts' => $alerts,
+            'panel' => $this->panelPayload(),
             'isAdmin' => $isAdmin,
-            'users' => $users,
+            'users' => $isAdmin ? User::getAdmins()->map->only(['id', 'name'])->values() : collect(),
         ]);
     }
 
@@ -43,30 +37,52 @@ class IndexController extends Controller
      */
     public function publicAlertsJson()
     {
+        return response()->json($this->panelPayload());
+    }
+
+    protected function panelPayload(): array
+    {
+        $now = now();
+
         $alerts = Alert::with('atribuidoUser')
+            ->withCount('children')
+            ->withMax('children', 'data_ocorrencia')
             ->whereNull('parent_id')
             ->where('status_resolucao', 'pendente')
             ->orderByDesc('data_ocorrencia')
             ->get()
-            ->map(function ($alert) {
+            ->map(function (Alert $alert) use ($now) {
+                $ultima = $alert->children_max_data_ocorrencia
+                    ? Carbon::parse($alert->children_max_data_ocorrencia)
+                    : $alert->data_ocorrencia;
+
                 return [
                     'id' => $alert->id,
                     'service_name' => $alert->service_name ?? $alert->type,
                     'type' => $alert->type,
-                    'data_ocorrencia' => $alert->data_ocorrencia ? $alert->data_ocorrencia->toIso8601String() : null,
-                    'data_ocorrencia_formatada' => $alert->data_ocorrencia ? $alert->data_ocorrencia->format('d/m/Y H:i') : null,
-                    'data_ocorrencia_relativa' => $alert->data_ocorrencia ? $alert->data_ocorrencia->diffForHumans() : null,
+                    'data_ocorrencia' => $alert->data_ocorrencia?->toIso8601String(),
+                    'data_ocorrencia_formatada' => $alert->data_ocorrencia?->format('d/m/Y H:i'),
+                    'data_ocorrencia_relativa' => $alert->data_ocorrencia?->diffForHumans(),
+                    'idade_minutos' => $alert->data_ocorrencia ? (int) $alert->data_ocorrencia->diffInMinutes($now) : 0,
+                    'repeticoes' => (int) $alert->children_count,
+                    'ultima_ocorrencia_relativa' => $alert->children_count > 0 ? $ultima?->diffForHumans() : null,
                     'atribuido_nome' => $alert->atribuidoUser ? $alert->atribuidoUser->name : 'Não atribuído',
                     'atribuido_id' => $alert->atribuido,
                     'status_resolucao' => $alert->status_resolucao,
                 ];
-            });
+            })
+            ->values();
 
-        return response()->json([
+        $oldest = $alerts->sortByDesc('idade_minutos')->first();
+
+        return [
             'total' => $alerts->count(),
-            'updated_at' => now()->format('H:i:s'),
-            'updated_at_full' => now()->format('d/m/Y H:i:s'),
+            'nao_atribuidos' => $alerts->whereNull('atribuido_id')->count(),
+            'ocorrencias' => $alerts->sum(fn ($a) => $a['repeticoes'] + 1),
+            'mais_antigo_relativo' => $oldest['data_ocorrencia_relativa'] ?? null,
+            'updated_at' => $now->format('H:i:s'),
+            'updated_at_full' => $now->format('d/m/Y H:i:s'),
             'alerts' => $alerts,
-        ]);
+        ];
     }
 }

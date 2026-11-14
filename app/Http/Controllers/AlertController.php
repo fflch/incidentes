@@ -4,7 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\AlertRequest;
 use App\Models\Alert;
+use App\Models\AlertComment;
 use App\Models\User;
+use App\Services\AlertDiagnosticsService;
+use App\Services\AlertGroupingService;
 use App\Services\AlertNotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -14,7 +17,7 @@ class AlertController extends Controller
     public function __construct()
     {
         $this->middleware('auth');
-        $this->middleware('can:admin')->except(['resolve']);
+        $this->middleware('can:admin')->except(['resolve', 'show', 'assignToMe', 'storeComment']);
     }
 
     public function index(Request $request)
@@ -112,6 +115,17 @@ class AlertController extends Controller
 
         $alert = Alert::create($payload);
 
+        // Se for similar a um grupo já existente, agrega ao alerta mais antigo do grupo
+        $groupRoot = empty($payload['parent_id'])
+            ? app(AlertGroupingService::class)->groupAlert($alert)
+            : null;
+
+        if ($groupRoot) {
+            return redirect()
+                ->route('alerts.show', $groupRoot)
+                ->with('success', "Alerta cadastrado e agrupado ao alerta #{$groupRoot->id} (similar e mais antigo).");
+        }
+
         // Se atribuído (seja manualmente ou via AssignmentRule em booted/creating), notifica por e-mail
         if (!empty($alert->atribuido)) {
             AlertNotificationService::notifyAssignment($alert);
@@ -122,10 +136,70 @@ class AlertController extends Controller
 
     public function show(Alert $alert)
     {
+        abort_unless($alert->canBeAccessedBy(auth()->user()), 403, 'Você só pode ver alertas atribuídos a você.');
+
         return view('alerts.show', [
             'alert' => $alert->load(['atribuidoUser', 'resolvidoPor']),
             'users' => User::getAdmins(),
+            'comments' => $alert->groupComments(),
+            'diag' => app(AlertDiagnosticsService::class)->forGroup($alert),
         ]);
+    }
+
+    /**
+     * Atribui o alerta (o grupo inteiro) ao usuário logado
+     */
+    public function assignToMe(Request $request, Alert $alert)
+    {
+        $root = $alert->groupRoot();
+        $userId = auth()->id();
+
+        if ((int) $root->atribuido !== (int) $userId) {
+            $root->atribuido = $userId;
+            $root->save();
+
+            // Quem se atribuiu não precisa receber e-mail; apenas a gestão é avisada
+            AlertNotificationService::notifyAssignment($root, notifyAssignee: false);
+        }
+
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Alerta atribuído a você.',
+                'atribuido_id' => $userId,
+                'atribuido_nome' => auth()->user()->name,
+            ]);
+        }
+
+        return back()->with('success', 'Alerta atribuído a você.');
+    }
+
+    /**
+     * Adiciona um comentário ao alerta sem resolvê-lo e avisa o responsável por e-mail
+     */
+    public function storeComment(Request $request, Alert $alert)
+    {
+        abort_unless($alert->canBeAccessedBy(auth()->user()), 403);
+
+        $validated = $request->validate([
+            'comentario' => ['required', 'string', 'max:5000'],
+        ], [
+            'comentario.required' => 'Escreva um comentário.',
+        ]);
+
+        $root = $alert->groupRoot();
+
+        $comment = AlertComment::create([
+            'alert_id' => $root->id,
+            'user_id' => auth()->id(),
+            'comentario' => trim($validated['comentario']),
+        ]);
+
+        AlertNotificationService::notifyComment($root, $comment);
+
+        return redirect()
+            ->to(route('alerts.show', $alert) . '#comentarios')
+            ->with('success', 'Comentário adicionado.');
     }
 
     public function edit(Alert $alert)

@@ -65,6 +65,52 @@ class Alert extends Model
         return $this->belongsTo(User::class, 'resolvido_por_id');
     }
 
+    public function comments()
+    {
+        return $this->hasMany(AlertComment::class);
+    }
+
+    /**
+     * IDs de todos os alertas do grupo (raiz + filhos).
+     */
+    public function groupIds(): array
+    {
+        $root = $this->groupRoot();
+
+        return $root->children()->pluck('id')->push($root->id)->all();
+    }
+
+    /**
+     * Comentários de todo o grupo, do mais antigo para o mais novo.
+     */
+    public function groupComments()
+    {
+        return AlertComment::query()
+            ->with('user')
+            ->whereIn('alert_id', $this->groupIds())
+            ->orderBy('created_at')
+            ->orderBy('id')
+            ->get();
+    }
+
+    /**
+     * Pode ver detalhes / comentar: admin ou responsável pelo grupo.
+     */
+    public function canBeAccessedBy(?User $user): bool
+    {
+        if (!$user) {
+            return false;
+        }
+
+        if ($user->can('admin')) {
+            return true;
+        }
+
+        $root = $this->groupRoot();
+
+        return (int) $root->atribuido === (int) $user->id || (int) $this->atribuido === (int) $user->id;
+    }
+
     public function scopeRoot(Builder $query): Builder
     {
         return $query->whereNull('parent_id');

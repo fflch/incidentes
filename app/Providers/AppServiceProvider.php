@@ -23,6 +23,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // Datas relativas ("há 5 minutos") em português em todo o sistema
+        \Carbon\Carbon::setLocale('pt_BR');
+
         if (\App::environment('production')) {
             \URL::forceScheme('https');
         }
