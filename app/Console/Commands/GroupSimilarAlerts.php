@@ -20,13 +20,14 @@ class GroupSimilarAlerts extends Command
         $pendingBefore = Alert::query()->whereNull('parent_id')->where('status_resolucao', 'pendente')->count();
         $resolvedBefore = Alert::query()->whereNull('parent_id')->where('status_resolucao', 'resolvido')->count();
 
-        $fixedRoots = $groupingService->normalizeGroups();
+        $result = $groupingService->run($threshold);
+        $fixedRoots = $result['raizes_corrigidas'];
+        $groupedPending = $result['pendentes_agrupados'];
+        $groupedResolved = $result['resolvidos_agrupados'];
+
         if ($fixedRoots > 0) {
             $this->warn("{$fixedRoots} grupo(s) tiveram a raiz corrigida para o alerta mais antigo.");
         }
-
-        $groupedPending = $groupingService->groupPendingAlerts($threshold);
-        $groupedResolved = $groupingService->groupResolvedAlerts($threshold);
 
         $this->info("Agrupamento concluído: {$groupedPending} pendentes e {$groupedResolved} resolvidos agrupados.");
         $this->line("Raizes atuais: {$rootAlerts} | pendentes: {$pendingBefore} | resolvidos: {$resolvedBefore}");

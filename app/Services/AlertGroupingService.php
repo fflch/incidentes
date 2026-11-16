@@ -3,11 +3,42 @@
 namespace App\Services;
 
 use App\Models\Alert;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 class AlertGroupingService
 {
     public const DEFAULT_SIMILARITY_THRESHOLD = 80;
+
+    public const LAST_RUN_CACHE_KEY = 'alerts:group-similar:last-run';
+
+    /**
+     * Executa a varredura completa (normaliza grupos e agrupa pendentes e
+     * resolvidos). Usado tanto pelo agendamento quanto pela interface.
+     * O resultado da última execução fica guardado em cache.
+     */
+    public function run(?float $threshold = null, string $origem = 'agendamento'): array
+    {
+        $threshold = $threshold ?? self::DEFAULT_SIMILARITY_THRESHOLD;
+
+        $result = [
+            'executado_em' => now()->toIso8601String(),
+            'origem' => $origem,
+            'threshold' => $threshold,
+            'raizes_corrigidas' => $this->normalizeGroups(),
+            'pendentes_agrupados' => $this->groupPendingAlerts($threshold),
+            'resolvidos_agrupados' => $this->groupResolvedAlerts($threshold),
+        ];
+
+        Cache::forever(self::LAST_RUN_CACHE_KEY, $result);
+
+        return $result;
+    }
+
+    public function lastRun(): ?array
+    {
+        return Cache::get(self::LAST_RUN_CACHE_KEY);
+    }
 
     public function groupPendingAlerts(?float $threshold = null): int
     {

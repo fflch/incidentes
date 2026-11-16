@@ -5,6 +5,7 @@ use App\Http\Controllers\AssignmentRuleController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\IndexController;
 use App\Http\Controllers\MyAlertsController;
+use App\Http\Controllers\SettingsController;
 use Illuminate\Support\Facades\Route;
 
 // -------------------------------------------------------------
@@ -52,6 +53,10 @@ Route::middleware(['auth'])->group(function () {
 
         // Regras de atribuição automática
         Route::resource('assignment-rules', AssignmentRuleController::class);
+
+        // Configurações / manutenção
+        Route::get('/configuracoes', [SettingsController::class, 'index'])->name('settings.index');
+        Route::post('/configuracoes/agrupar-alertas', [SettingsController::class, 'groupAlerts'])->name('settings.group-alerts');
 
         // Resolução em lote
         Route::post('/alerts/bulk-resolve', [AlertController::class, 'bulkResolve'])->name('alerts.bulk-resolve');
