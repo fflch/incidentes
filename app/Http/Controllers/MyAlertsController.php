@@ -19,6 +19,8 @@ class MyAlertsController extends Controller
 
         $query = Alert::query()
             ->with(['resolvidoPor', 'atribuidoUser'])
+            ->withCount('children')
+            ->withMax('children', 'data_ocorrencia')
             ->whereNull('parent_id')
             ->where('atribuido', $userId);
 
@@ -38,7 +40,7 @@ class MyAlertsController extends Controller
             });
         }
 
-        $alerts = $query->orderByDesc('data_ocorrencia')->paginate(15)->withQueryString();
+        $alerts = $query->orderByDesc('data_ocorrencia')->paginate(12)->withQueryString();
 
         $countPendentes = Alert::whereNull('parent_id')->where('atribuido', $userId)->where('status_resolucao', 'pendente')->count();
         $countResolvidos = Alert::whereNull('parent_id')->where('atribuido', $userId)->where('status_resolucao', 'resolvido')->count();

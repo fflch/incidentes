@@ -7,7 +7,7 @@
             <h1 class="h3 mb-1"><i class="fas fa-plus-circle text-primary me-2"></i>Cadastrar Alerta</h1>
             <p class="text-muted mb-0">Preencha os dados do incidente para registrar o alerta.</p>
         </div>
-        <a href="{{ route('alerts.index') }}" class="btn btn-outline-secondary">
+        <a href="{{ route('home') }}" class="btn btn-outline-secondary">
             <i class="fas fa-arrow-left me-1"></i> Voltar
         </a>
     </div>
@@ -104,7 +104,7 @@
                 </div>
 
                 <div class="mt-4 pt-3 border-top d-flex justify-content-end gap-2">
-                    <a href="{{ route('alerts.index') }}" class="btn btn-outline-secondary px-4">Cancelar</a>
+                    <a href="{{ route('home') }}" class="btn btn-outline-secondary px-4">Cancelar</a>
                     <button type="submit" class="btn btn-primary px-4 shadow-sm">
                         <i class="fas fa-save me-1"></i> Salvar Alerta
                     </button>

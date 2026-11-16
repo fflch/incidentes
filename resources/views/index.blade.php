@@ -49,7 +49,7 @@
     <div class="card border-0 shadow-sm">
         <div class="card-header bg-white d-flex justify-content-between align-items-center">
             <strong>Últimos pendentes</strong>
-            <a href="{{ route('alerts.index') }}" class="btn btn-sm btn-outline-primary">Ver todos</a>
+            <a href="{{ route('home') }}" class="btn btn-sm btn-outline-primary">Ver todos</a>
         </div>
         <div class="list-group list-group-flush">
             @forelse($alerts as $alert)

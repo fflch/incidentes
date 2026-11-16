@@ -15,7 +15,7 @@
             <p class="text-muted mb-0">Consulte os incidentes finalizados, comentários de encerramento, tempo de resolução e responsáveis.</p>
         </div>
         <div class="d-flex gap-2">
-            <a href="{{ route('alerts.index') }}" class="btn btn-outline-warning">
+            <a href="{{ route('home') }}" class="btn btn-outline-warning">
                 <i class="fas fa-exclamation-triangle me-1"></i> Ver Pendentes
             </a>
             <a href="{{ route('dashboard') }}" class="btn btn-outline-primary">

@@ -78,7 +78,11 @@ class AssignmentRuleController extends Controller
         // Se solicitado, aplica retroativamente aos alertas pendentes sem atribuição deste serviço
         $appliedCount = 0;
         if ($request->boolean('apply_to_pending')) {
-            $pendingAlerts = Alert::where('status_resolucao', 'pendente')
+            // Somente alertas principais: as repetições (parent_id não nulo) herdam
+            // o responsável do principal e não geram e-mail próprio.
+            $pendingAlerts = Alert::query()
+                ->whereNull('parent_id')
+                ->where('status_resolucao', 'pendente')
                 ->whereNull('atribuido')
                 ->get()
                 ->filter(function ($alert) use ($rule) {
@@ -86,9 +90,8 @@ class AssignmentRuleController extends Controller
                 });
 
             foreach ($pendingAlerts as $alert) {
-                $alert->atribuido = $rule->user_id;
-                $alert->save();
-                AlertNotificationService::notifyAssignment($alert);
+                $root = $alert->assignGroup($rule->user_id);
+                AlertNotificationService::notifyAssignment($root);
                 $appliedCount++;
             }
         }

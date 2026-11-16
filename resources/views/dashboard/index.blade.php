@@ -11,8 +11,8 @@
             <a href="{{ route('alerts.create') }}" class="btn btn-primary shadow-sm">
                 <i class="fas fa-plus me-1"></i> Novo Alerta
             </a>
-            <a href="{{ route('alerts.index') }}" class="btn btn-outline-secondary">
-                <i class="fas fa-list me-1"></i> Ver Todos os Alertas
+            <a href="{{ route('home') }}" class="btn btn-outline-secondary">
+                <i class="fas fa-tv me-1"></i> Ver Pendentes na Home
             </a>
         </div>
     </div>
@@ -272,7 +272,7 @@
                                 @endif
                             </td>
                             <td class="text-end">
-                                <a href="{{ route('alerts.index', ['search' => $service->servico]) }}" class="btn btn-sm btn-outline-primary">
+                                <a href="{{ route('home', ['search' => $service->servico]) }}" class="btn btn-sm btn-outline-primary">
                                     Ver incidentes &rarr;
                                 </a>
                             </td>

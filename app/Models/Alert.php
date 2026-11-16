@@ -165,6 +165,44 @@ class Alert extends Model
         return $root->children()->whereKeyNot($this->id)->orderByDesc('data_ocorrencia')->get();
     }
 
+    /**
+     * Define o responsável do grupo inteiro: o alerta principal e todas as
+     * repetições (filhos) passam a ter o mesmo responsável.
+     */
+    public function assignGroup(?int $userId): self
+    {
+        $root = $this->groupRoot();
+
+        $root->atribuido = $userId;
+        $root->save();
+
+        $root->children()->update(['atribuido' => $userId]);
+
+        return $root;
+    }
+
+    /**
+     * Estatísticas de repetição do grupo: total de ocorrências (principal +
+     * repetições), primeira e última data de ocorrência.
+     *
+     * @return array{total: int, first: ?Carbon, last: ?Carbon}
+     */
+    public function groupOccurrenceStats(): array
+    {
+        $root = $this->groupRoot();
+
+        $stats = self::query()
+            ->where(fn ($q) => $q->whereKey($root->id)->orWhere('parent_id', $root->id))
+            ->selectRaw('COUNT(*) as total, MIN(data_ocorrencia) as first, MAX(data_ocorrencia) as last')
+            ->first();
+
+        return [
+            'total' => (int) ($stats->total ?? 1),
+            'first' => $stats?->first ? Carbon::parse($stats->first) : $root->data_ocorrencia,
+            'last' => $stats?->last ? Carbon::parse($stats->last) : $root->data_ocorrencia,
+        ];
+    }
+
     public function resolveGroup(string $comentario, int $userId): void
     {
         $root = $this->groupRoot();

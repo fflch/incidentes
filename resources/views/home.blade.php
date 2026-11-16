@@ -36,7 +36,7 @@
         @if($isAdmin)
             <div class="ip-admin-links mt-4">
                 <a href="{{ route('dashboard') }}" class="btn btn-sm ip-btn-ghost"><i class="fas fa-chart-line me-1"></i> Dashboard</a>
-                <a href="{{ route('alerts.index') }}" class="btn btn-sm ip-btn-ghost"><i class="fas fa-list me-1"></i> Gestão de alertas</a>
+                <a href="{{ route('alerts.resolved') }}" class="btn btn-sm ip-btn-ghost"><i class="fas fa-check-circle me-1"></i> Alertas resolvidos</a>
                 <a href="{{ route('assignment-rules.index') }}" class="btn btn-sm ip-btn-ghost"><i class="fas fa-magic me-1"></i> Regras de atribuição</a>
                 <a href="{{ route('alerts.create') }}" class="btn btn-sm btn-light fw-semibold"><i class="fas fa-plus me-1"></i> Novo alerta</a>
             </div>
@@ -324,7 +324,7 @@
                         </button>`;
         }
         if (isAdmin || mine) {
-            actions += `<a href="/alerts/${alert.id}" class="btn btn-sm btn-outline-secondary" title="Ver detalhes e comentários"><i class="fas fa-arrow-right"></i></a>`;
+            actions += `<a href="/alerts/${alert.id}" class="btn btn-sm btn-outline-primary" title="Ver detalhes e comentários"><i class="fas fa-eye me-1"></i> Ver</a>`;
         }
 
         const adminAssign = isAdmin
@@ -517,7 +517,13 @@
             });
         });
 
-        document.getElementById('ipSearch').addEventListener('input', renderGrid);
+        const ipSearch = document.getElementById('ipSearch');
+        const initialSearch = new URLSearchParams(window.location.search).get('search');
+        if (initialSearch) {
+            ipSearch.value = initialSearch;
+            renderGrid();
+        }
+        ipSearch.addEventListener('input', renderGrid);
 
         document.getElementById('btnToggleFullscreen').addEventListener('click', function () {
             const el = document.getElementById('tvPanelContainer');

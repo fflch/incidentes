@@ -12,10 +12,17 @@ use Illuminate\Support\Facades\Mail;
 class AlertNotificationService
 {
     /**
-     * Envia notificação imediata quando um alerta é atribuído a um responsável
+     * Envia notificação imediata quando um alerta é atribuído a um responsável.
+     *
+     * Só alertas principais (parent_id nulo) geram e-mail: repetições agrupadas
+     * dependem sempre do alerta principal e nunca disparam notificação própria.
      */
     public static function notifyAssignment(Alert $alert, bool $notifyAssignee = true): void
     {
+        if (!$alert->isRoot()) {
+            return;
+        }
+
         $alert->loadMissing('atribuidoUser');
 
         if (!$alert->atribuidoUser || empty($alert->atribuidoUser->email)) {

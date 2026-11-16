@@ -124,11 +124,13 @@ class AlertGroupingService
     protected function attachToParent(Alert $parent, Alert $child): void
     {
         DB::transaction(function () use ($parent, $child) {
+            // Repetições dependem do principal: herdam também o responsável dele
             Alert::query()
                 ->where('parent_id', $child->id)
-                ->update(['parent_id' => $parent->id]);
+                ->update(['parent_id' => $parent->id, 'atribuido' => $parent->atribuido]);
 
             $child->parent_id = $parent->id;
+            $child->atribuido = $parent->atribuido;
             $child->save();
         });
     }
@@ -166,7 +168,7 @@ class AlertGroupingService
                     $q->where('parent_id', $root->id)->orWhere('id', $root->id);
                 })
                 ->whereKeyNot($oldest->id)
-                ->update(['parent_id' => $oldest->id]);
+                ->update(['parent_id' => $oldest->id, 'atribuido' => $oldest->atribuido]);
         });
 
         return $oldest->fresh();

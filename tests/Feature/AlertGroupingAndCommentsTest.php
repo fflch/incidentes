@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Mail\AlertAssignedMail;
 use App\Mail\AlertCommentMail;
 use App\Models\Alert;
 use App\Models\User;
@@ -214,5 +215,98 @@ class AlertGroupingAndCommentsTest extends TestCase
 
         $this->assertSame('pendente', $a->fresh()->status_resolucao);
         $this->actingAs($user)->get('/')->assertSee('O comentário deve conter pelo menos 3 caracteres.');
+    }
+    public function test_regra_aplicada_aos_pendentes_so_envia_email_dos_alertas_principais(): void
+    {
+        Mail::fake();
+        config(['mail.emails_gestao' => []]);
+        Gate::define('admin', fn () => true);
+        $admin = User::factory()->create();
+        $responsavel = User::factory()->create();
+
+        $root = $this->alert('1', '2026-11-10 08:00:00');
+        $filhos = collect(range(2, 6))->map(fn ($i) => $this->alert((string) $i, "2026-11-10 0{$i}:30:00", ['parent_id' => $root->id]));
+        $unico = $this->alert('9', '2026-11-11 08:00:00', ['mensagem' => 'Outro erro totalmente diferente']);
+
+        $this->actingAs($admin)
+            ->post(route('assignment-rules.store'), [
+                'service_name' => 'Portal',
+                'user_id' => $responsavel->id,
+                'apply_to_pending' => 1,
+            ])
+            ->assertRedirect(route('assignment-rules.index'));
+
+        Mail::assertSent(AlertAssignedMail::class, 2);
+        Mail::assertSent(AlertAssignedMail::class, fn ($m) => $m->alert->is($root) && $m->ocorrencias === 6
+            && $m->primeiraOcorrencia->format('Y-m-d H:i') === '2026-11-10 02:30'
+            && $m->ultimaOcorrencia->format('Y-m-d H:i') === '2026-11-10 08:00');
+        Mail::assertSent(AlertAssignedMail::class, fn ($m) => $m->alert->is($unico) && $m->ocorrencias === 1);
+
+        $filhos->each(fn ($f) => $this->assertSame($responsavel->id, $f->fresh()->atribuido));
+    }
+
+    public function test_trocar_responsavel_do_principal_troca_dos_filhos_sem_email_extra(): void
+    {
+        Mail::fake();
+        config(['mail.emails_gestao' => []]);
+        Gate::define('admin', fn () => true);
+        $admin = User::factory()->create();
+        $novo = User::factory()->create();
+
+        $root = $this->alert('1', '2026-11-10 08:00:00');
+        $filho = $this->alert('2', '2026-11-10 09:00:00', ['parent_id' => $root->id]);
+
+        // Mesmo enviando o filho, a atribuição vai para o grupo inteiro
+        $this->actingAs($admin)
+            ->post(route('alerts.assign-user', $filho), ['atribuido' => $novo->id])
+            ->assertRedirect();
+
+        $this->assertSame($novo->id, $root->fresh()->atribuido);
+        $this->assertSame($novo->id, $filho->fresh()->atribuido);
+        Mail::assertSent(AlertAssignedMail::class, 1);
+        Mail::assertSent(AlertAssignedMail::class, fn ($m) => $m->alert->is($root) && $m->hasTo($novo->email));
+
+        $html = (new AlertAssignedMail($root->fresh(), 'responsavel'))->render();
+        $this->assertStringContainsString('Este erro se repetiu 2 vezes', $html);
+    }
+
+    public function test_alerta_filho_nunca_gera_email_de_atribuicao(): void
+    {
+        Mail::fake();
+        $user = User::factory()->create();
+        $root = $this->alert('1', '2026-11-10 08:00:00');
+        $filho = $this->alert('2', '2026-11-10 09:00:00', ['parent_id' => $root->id, 'atribuido' => $user->id]);
+
+        \App\Services\AlertNotificationService::notifyAssignment($filho);
+
+        Mail::assertNothingSent();
+    }
+
+    public function test_agrupar_alerta_herda_responsavel_do_principal(): void
+    {
+        $a = User::factory()->create();
+        $b = User::factory()->create();
+        $velho = $this->alert('1', '2026-11-10 08:00:00', ['atribuido' => $a->id]);
+        $novo = $this->alert('2', '2026-11-10 09:00:00', ['atribuido' => $b->id]);
+
+        app(AlertGroupingService::class)->groupPendingAlerts();
+
+        $this->assertSame($velho->id, $novo->fresh()->parent_id);
+        $this->assertSame($a->id, $novo->fresh()->atribuido);
+    }
+
+    public function test_rota_de_alertas_pendentes_foi_removida_e_meus_alertas_renderiza(): void
+    {
+        Gate::define('admin', fn () => true);
+        $user = User::factory()->create();
+        $root = $this->alert('1', '2026-11-10 08:00:00', ['atribuido' => $user->id]);
+        $this->alert('2', '2026-11-10 09:00:00', ['parent_id' => $root->id, 'atribuido' => $user->id]);
+
+        $this->assertFalse(\Illuminate\Support\Facades\Route::has('alerts.index'));
+
+        $this->actingAs($user)->get(route('alerts.my'))
+            ->assertOk()
+            ->assertSee('Meus alertas')
+            ->assertSee('2 ocorrências');
     }
 }

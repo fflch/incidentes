@@ -17,11 +17,6 @@ $menu = [
         'can' => 'admin',
     ],
     [
-        'text' => '<i class="fas fa-exclamation-triangle me-1"></i> Alertas Pendentes',
-        'url' => 'alerts',
-        'can' => 'admin',
-    ],
-    [
         'text' => '<i class="fas fa-check-circle me-1"></i> Alertas Resolvidos',
         'url' => 'alerts/resolvidos',
         'can' => 'admin',

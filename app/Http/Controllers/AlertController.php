@@ -20,31 +20,6 @@ class AlertController extends Controller
         $this->middleware('can:admin')->except(['resolve', 'show', 'assignToMe', 'storeComment']);
     }
 
-    public function index(Request $request)
-    {
-        $alerts = Alert::query()
-            ->with(['atribuidoUser', 'resolvidoPor'])
-            ->whereNull('parent_id')
-            ->when($request->filled('search'), function ($query) use ($request) {
-                $query->where(function ($q) use ($request) {
-                    $q->where('id_externo', 'like', '%' . $request->search . '%')
-                        ->orWhere('service_name', 'like', '%' . $request->search . '%')
-                        ->orWhere('mensagem', 'like', '%' . $request->search . '%');
-                });
-            })
-            ->where('status_resolucao', 'pendente')
-            ->orderByDesc('data_ocorrencia')
-            ->paginate(20)
-            ->withQueryString();
-
-        return view('alerts.index', [
-            'alerts' => $alerts,
-            'title' => 'Alertas pendentes',
-            'statusFilter' => 'pendente',
-            'users' => User::getAdmins(),
-        ]);
-    }
-
     public function resolved(Request $request)
     {
         $alerts = Alert::query()
@@ -131,7 +106,7 @@ class AlertController extends Controller
             AlertNotificationService::notifyAssignment($alert);
         }
 
-        return redirect()->route('alerts.index')->with('success', 'Alerta cadastrado com sucesso.');
+        return redirect()->route('home')->with('success', 'Alerta cadastrado com sucesso.');
     }
 
     public function show(Alert $alert)
@@ -155,8 +130,7 @@ class AlertController extends Controller
         $userId = auth()->id();
 
         if ((int) $root->atribuido !== (int) $userId) {
-            $root->atribuido = $userId;
-            $root->save();
+            $root = $root->assignGroup($userId);
 
             // Quem se atribuiu não precisa receber e-mail; apenas a gestão é avisada
             AlertNotificationService::notifyAssignment($root, notifyAssignee: false);
@@ -263,8 +237,13 @@ class AlertController extends Controller
         $alert->fill($data);
         $alert->save();
 
-        if (!empty($alert->atribuido) && $alert->atribuido != $oldAtribuido) {
-            AlertNotificationService::notifyAssignment($alert);
+        if ($alert->atribuido != $oldAtribuido && $alert->isRoot()) {
+            // Repetições seguem sempre o responsável do principal
+            $alert->children()->update(['atribuido' => $alert->atribuido]);
+
+            if (!empty($alert->atribuido)) {
+                AlertNotificationService::notifyAssignment($alert);
+            }
         }
 
         return redirect()->route('alerts.show', ['alert' => $alert])->with('success', 'Alerta atualizado.');
@@ -274,7 +253,7 @@ class AlertController extends Controller
     {
         $alert->delete();
 
-        return redirect()->route('alerts.index')->with('success', 'Alerta removido.');
+        return redirect()->route('home')->with('success', 'Alerta removido.');
     }
 
     /**
@@ -327,23 +306,24 @@ class AlertController extends Controller
             'atribuido' => ['nullable', 'exists:users,id'],
         ]);
 
-        $oldAtribuido = $alert->atribuido;
-        $newAtribuido = $request->input('atribuido');
+        // A atribuição vale sempre para o grupo inteiro (principal + repetições)
+        $root = $alert->groupRoot();
+        $oldAtribuido = $root->atribuido;
+        $newAtribuido = $request->input('atribuido') ?: null;
 
-        $alert->atribuido = $newAtribuido ?: null;
-        $alert->save();
+        $root = $root->assignGroup($newAtribuido ? (int) $newAtribuido : null);
 
-        // Se atribuído a um novo responsável, notifica por e-mail
+        // Se atribuído a um novo responsável, notifica por e-mail (somente o principal)
         if (!empty($newAtribuido) && $newAtribuido != $oldAtribuido) {
-            AlertNotificationService::notifyAssignment($alert);
+            AlertNotificationService::notifyAssignment($root);
         }
 
         if ($request->expectsJson() || $request->ajax()) {
-            $alert->load('atribuidoUser');
+            $root->load('atribuidoUser');
             return response()->json([
                 'success' => true,
                 'message' => 'Atribuição atualizada com sucesso.',
-                'atribuido_nome' => $alert->atribuidoUser ? $alert->atribuidoUser->name : 'Não atribuído',
+                'atribuido_nome' => $root->atribuidoUser ? $root->atribuidoUser->name : 'Não atribuído',
             ]);
         }
 

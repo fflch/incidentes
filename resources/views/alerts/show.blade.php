@@ -59,7 +59,7 @@
                 </div>
             </div>
             <div class="d-flex gap-2">
-                <a href="{{ url()->previous() !== url()->current() ? url()->previous() : route('alerts.index') }}" class="btn btn-sm ad-btn-ghost">
+                <a href="{{ url()->previous() !== url()->current() ? url()->previous() : route('home') }}" class="btn btn-sm ad-btn-ghost">
                     <i class="fas fa-arrow-left me-1"></i> Voltar
                 </a>
                 @can('admin')
@@ -270,15 +270,19 @@
                     @can('admin')
                         <div class="pt-3 mt-2 border-top">
                             <label class="form-label fw-bold text-muted small"><i class="fas fa-user-tag me-1"></i> Atribuir / reatribuir responsável</label>
-                            <form method="POST" action="{{ route('alerts.assign-user', $rootAlert) }}" class="d-flex gap-2">
+                            <form method="POST" action="{{ route('alerts.assign-user', $rootAlert) }}" id="assignUserForm">
                                 @csrf
-                                <select name="atribuido" class="form-select form-select-sm">
+                                <select name="atribuido" class="form-select form-select-sm" aria-label="Responsável"
+                                        onchange="document.getElementById('assignUserSaving').classList.remove('d-none'); this.style.pointerEvents = 'none'; this.form.submit();">
                                     <option value="">Sem atribuição</option>
                                     @foreach($users as $user)
                                         <option value="{{ $user->id }}" {{ $rootAlert->atribuido == $user->id ? 'selected' : '' }}>{{ $user->name }}</option>
                                     @endforeach
                                 </select>
-                                <button type="submit" class="btn btn-sm btn-outline-primary text-nowrap"><i class="fas fa-save"></i></button>
+                                <div class="form-text small d-none" id="assignUserSaving">
+                                    <span class="spinner-border spinner-border-sm me-1"></span> Salvando…
+                                </div>
+                                <div class="form-text small">A alteração é salva automaticamente e vale para todas as repetições.</div>
                             </form>
                         </div>
                     @endcan

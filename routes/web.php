@@ -36,8 +36,7 @@ Route::middleware(['auth'])->group(function () {
         // Dashboard dedicado
         Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
-        // Alertas pendentes e resolvidos
-        Route::get('/alerts', [AlertController::class, 'index'])->name('alerts.index');
+        // Alertas resolvidos (os pendentes ficam na home)
         Route::get('/alerts/resolvidos', [AlertController::class, 'resolved'])->name('alerts.resolved');
         Route::get('/alertas/resolvidos', fn() => redirect()->route('alerts.resolved'));
 

@@ -112,6 +112,24 @@
                 <span class="badge">{{ ucfirst($alert->status_resolucao) }}</span>
             </div>
 
+            @if($ocorrencias > 1)
+                <div style="background-color: #fff4e5; border: 1px solid #ffb74d; border-left: 4px solid #f57c00; border-radius: 6px; padding: 14px 16px; margin-bottom: 16px;">
+                    <div style="font-size: 15px; font-weight: 700; color: #b45309; margin-bottom: 6px;">
+                        &#9888; Este erro se repetiu {{ $ocorrencias }} vezes
+                    </div>
+                    <div style="font-size: 13px; color: #5f370e; line-height: 1.6;">
+                        Primeira ocorrência: <strong>{{ $primeiraOcorrencia?->format('d/m/Y H:i:s') ?? '—' }}</strong><br>
+                        Última ocorrência: <strong>{{ $ultimaOcorrencia?->format('d/m/Y H:i:s') ?? '—' }}</strong>
+                        @if($primeiraOcorrencia && $ultimaOcorrencia && $ultimaOcorrencia->gt($primeiraOcorrencia))
+                            <span style="color: #8a5a2b;">({{ $ultimaOcorrencia->diffForHumans($primeiraOcorrencia, \Carbon\CarbonInterface::DIFF_ABSOLUTE) }} de intervalo)</span>
+                        @endif
+                    </div>
+                    <div style="font-size: 12px; color: #8a5a2b; margin-top: 6px;">
+                        Logs que se repetem com frequência merecem atenção.
+                    </div>
+                </div>
+            @endif
+
             <table class="info-table">
                 <tr>
                     <th>Serviço:</th>
@@ -126,9 +144,19 @@
                     <td>{{ $alert->id_externo }}</td>
                 </tr>
                 <tr>
-                    <th>Ocorrência:</th>
-                    <td>{{ $alert->data_ocorrencia?->format('d/m/Y H:i:s') }}</td>
+                    <th>Ocorrências:</th>
+                    <td>{{ $ocorrencias }} {{ $ocorrencias === 1 ? 'vez (ocorrência única)' : 'vezes' }}</td>
                 </tr>
+                <tr>
+                    <th>Primeira ocorrência:</th>
+                    <td>{{ $primeiraOcorrencia?->format('d/m/Y H:i:s') ?? '—' }}</td>
+                </tr>
+                @if($ocorrencias > 1)
+                    <tr>
+                        <th>Última ocorrência:</th>
+                        <td>{{ $ultimaOcorrencia?->format('d/m/Y H:i:s') ?? '—' }}</td>
+                    </tr>
+                @endif
                 <tr>
                     <th>Responsável:</th>
                     <td>{{ $alert->atribuidoUser?->name ?? 'Não atribuído' }}</td>
