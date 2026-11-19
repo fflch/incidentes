@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Mail\AlertAssignedMail;
 use App\Mail\AlertCommentMail;
 use App\Models\Alert;
 use App\Models\User;
@@ -216,7 +215,7 @@ class AlertGroupingAndCommentsTest extends TestCase
         $this->assertSame('pendente', $a->fresh()->status_resolucao);
         $this->actingAs($user)->get('/')->assertSee('O comentário deve conter pelo menos 3 caracteres.');
     }
-    public function test_regra_aplicada_aos_pendentes_so_envia_email_dos_alertas_principais(): void
+    public function test_regra_aplicada_aos_pendentes_atribui_grupo_sem_enviar_email(): void
     {
         Mail::fake();
         config(['mail.emails_gestao' => []]);
@@ -230,22 +229,22 @@ class AlertGroupingAndCommentsTest extends TestCase
 
         $this->actingAs($admin)
             ->post(route('assignment-rules.store'), [
-                'service_name' => 'Portal',
+                'match_field' => 'service_name',
+                'pattern' => 'Portal',
                 'user_id' => $responsavel->id,
                 'apply_to_pending' => 1,
             ])
             ->assertRedirect(route('assignment-rules.index'));
 
-        Mail::assertSent(AlertAssignedMail::class, 2);
-        Mail::assertSent(AlertAssignedMail::class, fn ($m) => $m->alert->is($root) && $m->ocorrencias === 6
-            && $m->primeiraOcorrencia->format('Y-m-d H:i') === '2026-11-10 02:30'
-            && $m->ultimaOcorrencia->format('Y-m-d H:i') === '2026-11-10 08:00');
-        Mail::assertSent(AlertAssignedMail::class, fn ($m) => $m->alert->is($unico) && $m->ocorrencias === 1);
+        // Atribuição não gera e-mail: as pendências vão no resumo diário
+        Mail::assertNothingSent();
+        $this->assertSame($responsavel->id, $root->fresh()->atribuido);
+        $this->assertSame($responsavel->id, $unico->fresh()->atribuido);
 
         $filhos->each(fn ($f) => $this->assertSame($responsavel->id, $f->fresh()->atribuido));
     }
 
-    public function test_trocar_responsavel_do_principal_troca_dos_filhos_sem_email_extra(): void
+    public function test_trocar_responsavel_do_principal_troca_dos_filhos_sem_email(): void
     {
         Mail::fake();
         config(['mail.emails_gestao' => []]);
@@ -263,22 +262,6 @@ class AlertGroupingAndCommentsTest extends TestCase
 
         $this->assertSame($novo->id, $root->fresh()->atribuido);
         $this->assertSame($novo->id, $filho->fresh()->atribuido);
-        Mail::assertSent(AlertAssignedMail::class, 1);
-        Mail::assertSent(AlertAssignedMail::class, fn ($m) => $m->alert->is($root) && $m->hasTo($novo->email));
-
-        $html = (new AlertAssignedMail($root->fresh(), 'responsavel'))->render();
-        $this->assertStringContainsString('Este erro se repetiu 2 vezes', $html);
-    }
-
-    public function test_alerta_filho_nunca_gera_email_de_atribuicao(): void
-    {
-        Mail::fake();
-        $user = User::factory()->create();
-        $root = $this->alert('1', '2026-11-10 08:00:00');
-        $filho = $this->alert('2', '2026-11-10 09:00:00', ['parent_id' => $root->id, 'atribuido' => $user->id]);
-
-        \App\Services\AlertNotificationService::notifyAssignment($filho);
-
         Mail::assertNothingSent();
     }
 

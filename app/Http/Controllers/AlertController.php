@@ -101,11 +101,6 @@ class AlertController extends Controller
                 ->with('success', "Alerta cadastrado e agrupado ao alerta #{$groupRoot->id} (similar e mais antigo).");
         }
 
-        // Se atribuído (seja manualmente ou via AssignmentRule em booted/creating), notifica por e-mail
-        if (!empty($alert->atribuido)) {
-            AlertNotificationService::notifyAssignment($alert);
-        }
-
         return redirect()->route('home')->with('success', 'Alerta cadastrado com sucesso.');
     }
 
@@ -131,9 +126,6 @@ class AlertController extends Controller
 
         if ((int) $root->atribuido !== (int) $userId) {
             $root = $root->assignGroup($userId);
-
-            // Quem se atribuiu não precisa receber e-mail; apenas a gestão é avisada
-            AlertNotificationService::notifyAssignment($root, notifyAssignee: false);
         }
 
         if ($request->expectsJson() || $request->ajax()) {
@@ -240,10 +232,6 @@ class AlertController extends Controller
         if ($alert->atribuido != $oldAtribuido && $alert->isRoot()) {
             // Repetições seguem sempre o responsável do principal
             $alert->children()->update(['atribuido' => $alert->atribuido]);
-
-            if (!empty($alert->atribuido)) {
-                AlertNotificationService::notifyAssignment($alert);
-            }
         }
 
         return redirect()->route('alerts.show', ['alert' => $alert])->with('success', 'Alerta atualizado.');
@@ -308,15 +296,9 @@ class AlertController extends Controller
 
         // A atribuição vale sempre para o grupo inteiro (principal + repetições)
         $root = $alert->groupRoot();
-        $oldAtribuido = $root->atribuido;
         $newAtribuido = $request->input('atribuido') ?: null;
 
         $root = $root->assignGroup($newAtribuido ? (int) $newAtribuido : null);
-
-        // Se atribuído a um novo responsável, notifica por e-mail (somente o principal)
-        if (!empty($newAtribuido) && $newAtribuido != $oldAtribuido) {
-            AlertNotificationService::notifyAssignment($root);
-        }
 
         if ($request->expectsJson() || $request->ajax()) {
             $root->load('atribuidoUser');

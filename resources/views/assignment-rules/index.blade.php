@@ -12,7 +12,7 @@
     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
         <div>
             <h1 class="h3 mb-1"><i class="fas fa-magic text-primary me-2"></i>Regras de Atribuição Automática</h1>
-            <p class="text-muted mb-0">Associe o nome de um serviço a um usuário admin para que novos alertas sejam atribuídos automaticamente.</p>
+            <p class="text-muted mb-0">Associe o nome ou o tipo de um serviço a um usuário admin para que novos alertas sejam atribuídos automaticamente.</p>
         </div>
         <div>
             <a href="{{ route('assignment-rules.create') }}" class="btn btn-primary shadow-sm">
@@ -27,7 +27,7 @@
                 <div class="col-md-9">
                     <div class="input-group">
                         <span class="input-group-text bg-white border-end-0 text-muted"><i class="fas fa-search"></i></span>
-                        <input type="text" name="search" value="{{ request('search') }}" class="form-control border-start-0" placeholder="Filtrar por nome de serviço ou responsável...">
+                        <input type="text" name="search" value="{{ request('search') }}" class="form-control border-start-0" placeholder="Filtrar por serviço, tipo ou responsável...">
                     </div>
                 </div>
                 <div class="col-md-3 d-flex gap-2">
@@ -45,7 +45,7 @@
             <table class="table table-hover align-middle mb-0">
                 <thead class="table-light">
                     <tr>
-                        <th style="width: 45%;">Nome do Serviço</th>
+                        <th style="width: 45%;">Serviço / Tipo</th>
                         <th style="width: 35%;">Responsável Atribuído (Admin)</th>
                         <th style="width: 20%;" class="text-end">Ações</th>
                     </tr>
@@ -56,10 +56,11 @@
                             <td>
                                 <div class="d-flex align-items-center gap-2">
                                     <span class="badge bg-primary-subtle text-primary border border-primary-subtle p-2">
-                                        <i class="fas fa-server"></i>
+                                        <i class="fas {{ $rule->match_field === 'type' ? 'fa-tag' : 'fa-server' }}"></i>
                                     </span>
                                     <div>
-                                        <strong class="text-dark">{{ $rule->service_name }}</strong>
+                                        <strong class="text-dark">{{ $rule->pattern }}</strong>
+                                        <span class="badge bg-light text-secondary border ms-1">{{ $rule->matchFieldLabel() }}</span>
                                         <div class="small text-muted">Criada em {{ $rule->created_at?->format('d/m/Y H:i') }}</div>
                                     </div>
                                 </div>

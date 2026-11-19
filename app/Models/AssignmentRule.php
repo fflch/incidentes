@@ -10,9 +10,23 @@ class AssignmentRule extends Model
 {
     use HasFactory;
 
+    public const FIELD_SERVICE_NAME = 'service_name';
+    public const FIELD_TYPE = 'type';
+
+    /** Campos do alerta que uma regra pode usar, com o rótulo exibido. */
+    public const MATCH_FIELDS = [
+        self::FIELD_SERVICE_NAME => 'Nome do serviço',
+        self::FIELD_TYPE => 'Tipo do serviço',
+    ];
+
     protected $fillable = [
-        'service_name',
+        'match_field',
+        'pattern',
         'user_id',
+    ];
+
+    protected $attributes = [
+        'match_field' => self::FIELD_SERVICE_NAME,
     ];
 
     public function user(): BelongsTo
@@ -20,53 +34,57 @@ class AssignmentRule extends Model
         return $this->belongsTo(User::class, 'user_id');
     }
 
+    public function matchFieldLabel(): string
+    {
+        return self::MATCH_FIELDS[$this->match_field] ?? $this->match_field;
+    }
+
     /**
-     * Encontra uma regra correspondente para o nome do serviço.
+     * Encontra a regra aplicável a um alerta.
+     *
+     * Regras por nome do serviço têm prioridade sobre regras por tipo, por
+     * serem mais específicas. Em cada campo, coincidência exata vence prefixo.
+     */
+    public static function findForAlert(Alert $alert): ?self
+    {
+        return static::findFor(self::FIELD_SERVICE_NAME, $alert->service_name)
+            ?? static::findFor(self::FIELD_TYPE, $alert->type);
+    }
+
+    /**
+     * Encontra uma regra do campo informado que case com o valor.
      * Aceita:
-     * - coincidência exata: "portal-api"
+     * - coincidência exata (sem diferenciar maiúsculas): "portal-api"
      * - prefixo com wildcard: "portal-*"
      */
-    public static function findForService(?string $serviceName): ?self
+    public static function findFor(string $field, ?string $value): ?self
     {
-        if (empty($serviceName)) {
+        $value = trim((string) $value);
+        if ($value === '') {
             return null;
         }
 
-        $trimmed = trim($serviceName);
+        $rules = static::where('match_field', $field)->get();
 
-        $exact = static::where('service_name', $trimmed)
-            ->orWhereRaw('LOWER(service_name) = ?', [mb_strtolower($trimmed)])
-            ->first();
-
-        if ($exact) {
-            return $exact;
-        }
-
-        $rules = static::all();
-
-        foreach ($rules as $rule) {
-            if ($rule->matchesServiceName($trimmed)) {
-                return $rule;
-            }
-        }
-
-        return null;
+        return $rules->first(fn (self $rule) => strcasecmp(trim($rule->pattern), $value) === 0)
+            ?? $rules->first(fn (self $rule) => $rule->matchesValue($value));
     }
 
-    public function matchesServiceName(?string $serviceName): bool
+    public function matchesAlert(Alert $alert): bool
     {
-        if (empty($serviceName)) {
+        return $this->matchesValue($alert->{$this->match_field});
+    }
+
+    public function matchesValue(?string $value): bool
+    {
+        $candidate = trim((string) $value);
+        $pattern = trim((string) $this->pattern);
+
+        if ($candidate === '' || $pattern === '') {
             return false;
         }
 
-        $candidate = trim($serviceName);
-        $pattern = trim((string) $this->service_name);
-
-        if ($pattern === '') {
-            return false;
-        }
-
-        if (strtolower($pattern) === strtolower($candidate)) {
+        if (strcasecmp($pattern, $candidate) === 0) {
             return true;
         }
 
@@ -78,4 +96,3 @@ class AssignmentRule extends Model
         return false;
     }
 }
-

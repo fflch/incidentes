@@ -32,6 +32,7 @@ class SendDailyAlertsSummary extends Command
         $this->info('Iniciando envio do resumo diário de alertas pendentes...');
 
         $pendingAlerts = Alert::with('atribuidoUser')
+            ->withCount('children')
             ->whereNull('parent_id')
             ->where('status_resolucao', 'pendente')
             ->orderByDesc('data_ocorrencia')
@@ -47,7 +48,7 @@ class SendDailyAlertsSummary extends Command
             return Command::SUCCESS;
         }
 
-        // 1. Enviar para cada usuário com alertas atribuídos
+        // 1. Um único e-mail por responsável, só para quem tem pendências atribuídas
         $alertsByUser = $pendingAlerts->whereNotNull('atribuido')->groupBy('atribuido');
 
         foreach ($alertsByUser as $userId => $userAlerts) {

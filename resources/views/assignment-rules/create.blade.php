@@ -5,7 +5,7 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
             <h1 class="h3 mb-1"><i class="fas fa-magic text-primary me-2"></i>Nova Regra de Atribuição</h1>
-            <p class="text-muted mb-0">Quando chegar um alerta com o nome do serviço informado, ele será atribuído ao usuário selecionado.</p>
+            <p class="text-muted mb-0">Quando chegar um alerta com o nome ou o tipo do serviço informado, ele será atribuído ao usuário selecionado.</p>
         </div>
         <a href="{{ route('assignment-rules.index') }}" class="btn btn-outline-secondary">
             <i class="fas fa-arrow-left me-1"></i> Voltar
@@ -27,29 +27,7 @@
             <form method="POST" action="{{ route('assignment-rules.store') }}">
                 @csrf
 
-                <div class="mb-4">
-                    <label for="service_name" class="form-label fw-bold">Nome do Serviço <span class="text-danger">*</span></label>
-                    <input type="text"
-                           id="service_name"
-                           name="service_name"
-                           list="services-list"
-                           class="form-control form-control-lg @error('service_name') is-invalid @enderror"
-                           value="{{ old('service_name') }}"
-                           placeholder="Digite ou selecione o serviço (ex: drupal-prod_init, postgres, portal-api)"
-                           autocomplete="off"
-                           required>
-                    <datalist id="services-list">
-                        @foreach($suggestedServices as $service)
-                            <option value="{{ $service }}">
-                        @endforeach
-                    </datalist>
-                    <div class="form-text">
-                        Você pode digitar um serviço exato ou um prefixo com a sintaxe <strong>portal-*</strong> para aplicar a regra a todos os serviços que comecem com essa string.
-                    </div>
-                    @error('service_name')
-                        <div class="invalid-feedback">{{ $message }}</div>
-                    @enderror
-                </div>
+                @include('assignment-rules._match-fields')
 
                 <div class="mb-4">
                     <label for="user_id" class="form-label fw-bold">Usuário Responsável (Admin) <span class="text-danger">*</span></label>
@@ -80,7 +58,7 @@
                         </label>
                     </div>
                     <div class="small text-muted mt-1">
-                        Se marcado, todos os alertas deste serviço que estejam atualmente com status "pendente" e sem responsável serão automaticamente atribuídos a este usuário e as notificações serão disparadas.
+                        Se marcado, todos os alertas que casem com esta regra e estejam atualmente com status "pendente" e sem responsável serão automaticamente atribuídos a este usuário. Eles aparecerão no resumo diário de pendências enviado por e-mail.
                     </div>
                 </div>
 

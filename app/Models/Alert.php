@@ -30,9 +30,10 @@ class Alert extends Model
     protected static function booted(): void
     {
         static::creating(function (Alert $alert) {
-            // Se não foi atribuído manualmente, aplica a regra de atribuição automática pelo nome do serviço
-            if (empty($alert->atribuido) && !empty($alert->service_name)) {
-                $rule = AssignmentRule::findForService($alert->service_name);
+            // Se não foi atribuído manualmente, aplica a regra de atribuição automática
+            // (pelo nome do serviço ou, na falta de regra para ele, pelo tipo)
+            if (empty($alert->atribuido)) {
+                $rule = AssignmentRule::findForAlert($alert);
                 if ($rule) {
                     $alert->atribuido = $rule->user_id;
                 }

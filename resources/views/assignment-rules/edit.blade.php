@@ -5,7 +5,7 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
             <h1 class="h3 mb-1"><i class="fas fa-edit text-primary me-2"></i>Editar Regra de Atribuição</h1>
-            <p class="text-muted mb-0">Atualize o serviço ou o responsável associado.</p>
+            <p class="text-muted mb-0">Atualize o critério, o valor ou o responsável associado.</p>
         </div>
         <a href="{{ route('assignment-rules.index') }}" class="btn btn-outline-secondary">
             <i class="fas fa-arrow-left me-1"></i> Voltar
@@ -28,26 +28,7 @@
                 @csrf
                 @method('PUT')
 
-                <div class="mb-4">
-                    <label for="service_name" class="form-label fw-bold">Nome do Serviço <span class="text-danger">*</span></label>
-                    <input type="text"
-                           id="service_name"
-                           name="service_name"
-                           list="services-list"
-                           class="form-control form-control-lg @error('service_name') is-invalid @enderror"
-                           value="{{ old('service_name', $rule->service_name) }}"
-                           placeholder="Digite ou selecione o serviço"
-                           autocomplete="off"
-                           required>
-                    <datalist id="services-list">
-                        @foreach($suggestedServices as $service)
-                            <option value="{{ $service }}">
-                        @endforeach
-                    </datalist>
-                    @error('service_name')
-                        <div class="invalid-feedback">{{ $message }}</div>
-                    @enderror
-                </div>
+                @include('assignment-rules._match-fields')
 
                 <div class="mb-4">
                     <label for="user_id" class="form-label fw-bold">Usuário Responsável (Admin) <span class="text-danger">*</span></label>

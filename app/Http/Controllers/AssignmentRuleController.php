@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\Alert;
 use App\Models\AssignmentRule;
 use App\Models\User;
-use App\Services\AlertNotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
@@ -24,12 +23,15 @@ class AssignmentRuleController extends Controller
         $rules = AssignmentRule::with('user')
             ->when($request->filled('search'), function ($q) use ($request) {
                 $term = '%' . $request->search . '%';
-                $q->where('service_name', 'like', $term)
-                  ->orWhereHas('user', function ($uq) use ($term) {
-                      $uq->where('name', 'like', $term)->orWhere('email', 'like', $term);
-                  });
+                $q->where(function ($q) use ($term) {
+                    $q->where('pattern', 'like', $term)
+                      ->orWhereHas('user', function ($uq) use ($term) {
+                          $uq->where('name', 'like', $term)->orWhere('email', 'like', $term);
+                      });
+                });
             })
-            ->orderBy('service_name')
+            ->orderBy('match_field')
+            ->orderBy('pattern')
             ->get();
 
         return view('assignment-rules.index', [
@@ -41,17 +43,10 @@ class AssignmentRuleController extends Controller
     {
         Gate::authorize('admin');
 
-        // Sugere nomes de serviços já existentes nos alertas
-        $suggestedServices = Alert::query()
-            ->whereNotNull('service_name')
-            ->where('service_name', '!=', '')
-            ->distinct()
-            ->orderBy('service_name')
-            ->pluck('service_name');
-
         return view('assignment-rules.create', [
             'users' => User::getAdmins(),
-            'suggestedServices' => $suggestedServices,
+            'matchFields' => AssignmentRule::MATCH_FIELDS,
+            'suggestions' => $this->suggestions(),
         ]);
     }
 
@@ -59,39 +54,31 @@ class AssignmentRuleController extends Controller
     {
         Gate::authorize('admin');
 
-        $validated = $request->validate([
-            'service_name' => ['required', 'string', 'max:255', 'unique:assignment_rules,service_name'],
-            'user_id' => ['required', 'exists:users,id'],
-            'apply_to_pending' => ['nullable', 'boolean'],
-        ], [
-            'service_name.required' => 'O nome do serviço é obrigatório.',
-            'service_name.unique' => 'Já existe uma regra cadastrada para este serviço.',
-            'user_id.required' => 'Selecione um usuário responsável.',
-            'user_id.exists' => 'Usuário selecionado inválido.',
-        ]);
+        $validated = $this->validateRule($request);
 
         $rule = AssignmentRule::create([
-            'service_name' => trim($validated['service_name']),
+            'match_field' => $validated['match_field'],
+            'pattern' => trim($validated['pattern']),
             'user_id' => $validated['user_id'],
         ]);
 
-        // Se solicitado, aplica retroativamente aos alertas pendentes sem atribuição deste serviço
+        // Se solicitado, aplica retroativamente aos alertas pendentes sem atribuição
         $appliedCount = 0;
         if ($request->boolean('apply_to_pending')) {
             // Somente alertas principais: as repetições (parent_id não nulo) herdam
             // o responsável do principal e não geram e-mail próprio.
+            // Um alerta só recebe esta regra se ela for a que ele receberia ao
+            // chegar agora (respeita a prioridade nome do serviço > tipo).
             $pendingAlerts = Alert::query()
                 ->whereNull('parent_id')
                 ->where('status_resolucao', 'pendente')
                 ->whereNull('atribuido')
                 ->get()
-                ->filter(function ($alert) use ($rule) {
-                    return $rule->matchesServiceName($alert->service_name ?? $alert->type ?? '');
-                });
+                ->filter(fn (Alert $alert) => $rule->matchesAlert($alert)
+                    && AssignmentRule::findForAlert($alert)?->is($rule));
 
             foreach ($pendingAlerts as $alert) {
-                $root = $alert->assignGroup($rule->user_id);
-                AlertNotificationService::notifyAssignment($root);
+                $alert->assignGroup($rule->user_id);
                 $appliedCount++;
             }
         }
@@ -108,17 +95,11 @@ class AssignmentRuleController extends Controller
     {
         Gate::authorize('admin');
 
-        $suggestedServices = Alert::query()
-            ->whereNotNull('service_name')
-            ->where('service_name', '!=', '')
-            ->distinct()
-            ->orderBy('service_name')
-            ->pluck('service_name');
-
         return view('assignment-rules.edit', [
             'rule' => $assignmentRule,
             'users' => User::getAdmins(),
-            'suggestedServices' => $suggestedServices,
+            'matchFields' => AssignmentRule::MATCH_FIELDS,
+            'suggestions' => $this->suggestions(),
         ]);
     }
 
@@ -126,22 +107,11 @@ class AssignmentRuleController extends Controller
     {
         Gate::authorize('admin');
 
-        $validated = $request->validate([
-            'service_name' => [
-                'required',
-                'string',
-                'max:255',
-                Rule::unique('assignment_rules', 'service_name')->ignore($assignmentRule->id),
-            ],
-            'user_id' => ['required', 'exists:users,id'],
-        ], [
-            'service_name.required' => 'O nome do serviço é obrigatório.',
-            'service_name.unique' => 'Já existe uma regra cadastrada para este serviço.',
-            'user_id.required' => 'Selecione um usuário responsável.',
-        ]);
+        $validated = $this->validateRule($request, $assignmentRule);
 
         $assignmentRule->update([
-            'service_name' => trim($validated['service_name']),
+            'match_field' => $validated['match_field'],
+            'pattern' => trim($validated['pattern']),
             'user_id' => $validated['user_id'],
         ]);
 
@@ -156,5 +126,45 @@ class AssignmentRuleController extends Controller
 
         return redirect()->route('assignment-rules.index')->with('success', 'Regra de atribuição removida com sucesso.');
     }
-}
 
+    private function validateRule(Request $request, ?AssignmentRule $ignore = null): array
+    {
+        $unique = Rule::unique('assignment_rules', 'pattern')
+            ->where('match_field', $request->input('match_field'));
+        if ($ignore) {
+            $unique->ignore($ignore->id);
+        }
+
+        return $request->validate([
+            'match_field' => ['required', Rule::in(array_keys(AssignmentRule::MATCH_FIELDS))],
+            'pattern' => ['required', 'string', 'max:255', $unique],
+            'user_id' => ['required', 'exists:users,id'],
+            'apply_to_pending' => ['nullable', 'boolean'],
+        ], [
+            'match_field.required' => 'Escolha se a regra usa o nome ou o tipo do serviço.',
+            'match_field.in' => 'Critério de correspondência inválido.',
+            'pattern.required' => 'Informe o valor a ser comparado.',
+            'pattern.unique' => 'Já existe uma regra cadastrada para este valor.',
+            'user_id.required' => 'Selecione um usuário responsável.',
+            'user_id.exists' => 'Usuário selecionado inválido.',
+        ]);
+    }
+
+    /**
+     * Valores já existentes nos alertas, por campo, para sugerir no formulário.
+     */
+    private function suggestions(): array
+    {
+        $distinct = fn (string $column) => Alert::query()
+            ->whereNotNull($column)
+            ->where($column, '!=', '')
+            ->distinct()
+            ->orderBy($column)
+            ->pluck($column);
+
+        return [
+            AssignmentRule::FIELD_SERVICE_NAME => $distinct('service_name'),
+            AssignmentRule::FIELD_TYPE => $distinct('type'),
+        ];
+    }
+}

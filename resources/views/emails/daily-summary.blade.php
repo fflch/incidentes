@@ -153,7 +153,11 @@
                             <tr>
                                 <td>
                                     <strong>{{ $alert->service_name ?? $alert->type }}</strong>
-                                    <div style="font-size: 11px; color: #6c757d;">{{ $alert->id_externo }}</div>
+                                    @if(($alert->children_count ?? 0) > 0)
+                                        <span class="badge">{{ $alert->children_count + 1 }}x</span>
+                                    @endif
+                                    <div style="font-size: 12px; color: #495057; margin-top: 2px;">{{ \Illuminate\Support\Str::limit($alert->mensagem, 140) }}</div>
+                                    <div style="font-size: 11px; color: #6c757d;">{{ $alert->type }} · {{ $alert->id_externo }}</div>
                                 </td>
                                 <td>{{ $alert->data_ocorrencia?->format('d/m/Y H:i') }}</td>
                                 @if(!$destinatario)
@@ -187,7 +191,7 @@
             </div>
         </div>
         <div class="footer">
-            Este é um e-mail diário automático.
+            Este é um e-mail diário automático, enviado apenas a quem tem pendências.
         </div>
     </div>
 </body>
