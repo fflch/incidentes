@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Alert;
 use App\Models\AssignmentRule;
 use App\Models\User;
+use App\Services\AlertAssignmentService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
@@ -50,7 +51,7 @@ class AssignmentRuleController extends Controller
         ]);
     }
 
-    public function store(Request $request)
+    public function store(Request $request, AlertAssignmentService $assignmentService)
     {
         Gate::authorize('admin');
 
@@ -65,22 +66,9 @@ class AssignmentRuleController extends Controller
         // Se solicitado, aplica retroativamente aos alertas pendentes sem atribuição
         $appliedCount = 0;
         if ($request->boolean('apply_to_pending')) {
-            // Somente alertas principais: as repetições (parent_id não nulo) herdam
-            // o responsável do principal e não geram e-mail próprio.
-            // Um alerta só recebe esta regra se ela for a que ele receberia ao
-            // chegar agora (respeita a prioridade nome do serviço > tipo).
-            $pendingAlerts = Alert::query()
-                ->whereNull('parent_id')
-                ->where('status_resolucao', 'pendente')
-                ->whereNull('atribuido')
-                ->get()
-                ->filter(fn (Alert $alert) => $rule->matchesAlert($alert)
-                    && AssignmentRule::findForAlert($alert)?->is($rule));
-
-            foreach ($pendingAlerts as $alert) {
-                $alert->assignGroup($rule->user_id);
-                $appliedCount++;
-            }
+            // Só recebe esta regra o alerta para o qual ela seria a vencedora
+            // (respeita a prioridade nome do serviço > tipo).
+            $appliedCount = $assignmentService->assignPendingUnassigned($rule);
         }
 
         $msg = 'Regra de atribuição cadastrada com sucesso!';
