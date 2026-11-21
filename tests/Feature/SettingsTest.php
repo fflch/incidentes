@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Alert;
+use App\Models\AssignmentRule;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Gate;
@@ -50,5 +51,26 @@ class SettingsTest extends TestCase
 
         $this->actingAs($user)->get(route('settings.index'))->assertForbidden();
         $this->actingAs($user)->post(route('settings.group-alerts'), ['threshold' => 80])->assertForbidden();
+        $this->actingAs($user)->post(route('settings.apply-assignment-rules'))->assertForbidden();
+    }
+
+    public function test_admin_forca_atribuicao_pela_interface(): void
+    {
+        Gate::define('admin', fn () => true);
+        $user = User::factory()->create();
+        $responsavel = User::factory()->create();
+
+        $alerta = $this->alert('1', '2026-11-10 08:00:00');
+        $this->assertNull($alerta->fresh()->atribuido);
+
+        AssignmentRule::create(['match_field' => 'service_name', 'pattern' => 'Portal', 'user_id' => $responsavel->id]);
+
+        $this->actingAs($user)
+            ->post(route('settings.apply-assignment-rules'))
+            ->assertRedirect(route('settings.index'))
+            ->assertSessionHas('success', fn ($msg) => str_contains($msg, '1 alerta(s)'));
+
+        $this->assertSame($responsavel->id, $alerta->fresh()->atribuido);
+        $this->actingAs($user)->get(route('settings.index'))->assertOk()->assertSee('1 alerta(s) atribuído(s)');
     }
 }

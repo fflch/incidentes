@@ -64,6 +64,43 @@
                 </div>
             </div>
         </div>
+        <div class="col-lg-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <h2 class="h5 mb-1"><i class="fas fa-user-tag text-primary me-2"></i>Atribuição automática</h2>
+                    <p class="text-muted small">
+                        A cada 5 minutos as regras de atribuição são aplicadas aos alertas principais pendentes
+                        sem responsável (ex.: inseridos direto via SQL). As repetições herdam o responsável do principal.
+                        Use o botão abaixo para forçar a execução agora.
+                    </p>
+
+                    <dl class="row small mb-3">
+                        <dt class="col-sm-5 text-muted">Regras cadastradas</dt>
+                        <dd class="col-sm-7">{{ $regras }}</dd>
+                        <dt class="col-sm-5 text-muted">Pendentes sem responsável</dt>
+                        <dd class="col-sm-7">{{ $semResponsavel }}</dd>
+                        <dt class="col-sm-5 text-muted">Última execução</dt>
+                        <dd class="col-sm-7">
+                            @if($assignmentLastRun)
+                                {{ $assignmentLastRun['executado_em']->format('d/m/Y H:i:s') }}
+                                <span class="text-muted">({{ $assignmentLastRun['executado_em']->diffForHumans() }}, {{ $assignmentLastRun['origem'] }})</span>
+                                <div class="text-muted">{{ $assignmentLastRun['atribuidos'] }} alerta(s) atribuído(s)</div>
+                            @else
+                                <span class="text-muted">Sem registro</span>
+                            @endif
+                        </dd>
+                    </dl>
+
+                    <form method="POST" action="{{ route('settings.apply-assignment-rules') }}"
+                          onsubmit="this.querySelector('button').disabled = true;">
+                        @csrf
+                        <button type="submit" class="btn btn-primary w-100" @disabled($regras === 0)>
+                            <i class="fas fa-play me-1"></i> Aplicar regras agora
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 @endsection

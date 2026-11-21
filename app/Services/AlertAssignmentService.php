@@ -4,9 +4,34 @@ namespace App\Services;
 
 use App\Models\Alert;
 use App\Models\AssignmentRule;
+use Illuminate\Support\Facades\Cache;
 
 class AlertAssignmentService
 {
+    public const LAST_RUN_CACHE_KEY = 'alerts:apply-assignment-rules:last-run';
+
+    /**
+     * Aplica todas as regras aos pendentes sem responsável e guarda o
+     * resultado em cache. Usado pelo agendamento e pela interface.
+     */
+    public function run(string $origem = 'agendamento'): array
+    {
+        $result = [
+            'executado_em' => now()->toIso8601String(),
+            'origem' => $origem,
+            'atribuidos' => $this->assignPendingUnassigned(),
+        ];
+
+        Cache::forever(self::LAST_RUN_CACHE_KEY, $result);
+
+        return $result;
+    }
+
+    public function lastRun(): ?array
+    {
+        return Cache::get(self::LAST_RUN_CACHE_KEY);
+    }
+
     /**
      * Aplica as regras de atribuição aos alertas principais pendentes que
      * ainda não têm responsável (ex.: inseridos direto via SQL, sem passar

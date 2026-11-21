@@ -13,7 +13,7 @@ class ApplyAssignmentRules extends Command
 
     public function handle(AlertAssignmentService $assignmentService): int
     {
-        $assigned = $assignmentService->assignPendingUnassigned();
+        $assigned = $assignmentService->run()['atribuidos'];
 
         $this->info("{$assigned} alerta(s) pendente(s) atribuído(s) pelas regras.");
 

@@ -57,6 +57,7 @@ Route::middleware(['auth'])->group(function () {
         // Configurações / manutenção
         Route::get('/configuracoes', [SettingsController::class, 'index'])->name('settings.index');
         Route::post('/configuracoes/agrupar-alertas', [SettingsController::class, 'groupAlerts'])->name('settings.group-alerts');
+        Route::post('/configuracoes/aplicar-regras', [SettingsController::class, 'applyAssignmentRules'])->name('settings.apply-assignment-rules');
 
         // Resolução em lote
         Route::post('/alerts/bulk-resolve', [AlertController::class, 'bulkResolve'])->name('alerts.bulk-resolve');
