@@ -11,8 +11,12 @@
         </div>
         <div style="padding: 24px;">
             <p style="font-size: 16px; margin-top: 0;">
-                Olá, <strong>{{ $alert->atribuidoUser?->name }}</strong>!
-                <strong>{{ $comment->user?->name ?? 'Alguém' }}</strong> comentou em um alerta atribuído a você:
+                @if ($paraGestao)
+                    <strong>{{ $comment->user?->name ?? 'Alguém' }}</strong> comentou em um alerta em aberto:
+                @else
+                    Olá, <strong>{{ $alert->atribuidoUser?->name }}</strong>!
+                    <strong>{{ $comment->user?->name ?? 'Alguém' }}</strong> comentou em um alerta atribuído a você:
+                @endif
             </p>
 
             <table style="width: 100%; border-collapse: collapse; margin-top: 8px;">
@@ -24,6 +28,12 @@
                     <th style="padding: 8px 12px; text-align: left; color: #6c757d; font-size: 14px; border-bottom: 1px solid #e9ecef;">Ocorrência:</th>
                     <td style="padding: 8px 12px; font-size: 14px; border-bottom: 1px solid #e9ecef;">{{ $alert->data_ocorrencia?->format('d/m/Y H:i') }}</td>
                 </tr>
+                @if ($paraGestao)
+                <tr>
+                    <th style="padding: 8px 12px; text-align: left; color: #6c757d; font-size: 14px; border-bottom: 1px solid #e9ecef;">Responsável:</th>
+                    <td style="padding: 8px 12px; font-size: 14px; border-bottom: 1px solid #e9ecef;">{{ $alert->atribuidoUser?->name ?? 'Não atribuído' }}</td>
+                </tr>
+                @endif
                 <tr>
                     <th style="padding: 8px 12px; text-align: left; color: #6c757d; font-size: 14px; border-bottom: 1px solid #e9ecef;">Status:</th>
                     <td style="padding: 8px 12px; font-size: 14px; border-bottom: 1px solid #e9ecef;">{{ ucfirst($alert->status_resolucao) }}</td>
@@ -36,7 +46,7 @@
             </div>
 
             <div style="text-align: center;">
-                <a href="{{ url('/alerts/' . $alert->id) }}#comentarios" style="display: inline-block; background-color: #0d6efd; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 14px; margin-top: 24px;">Ver alerta e responder</a>
+                <a href="{{ url('/alerts/' . $alert->id) }}#comentarios" style="display: inline-block; background-color: #0d6efd; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 14px; margin-top: 24px;">{{ $paraGestao ? 'Ver alerta' : 'Ver alerta e responder' }}</a>
             </div>
         </div>
         <div style="background-color: #f8f9fa; padding: 16px; text-align: center; font-size: 12px; color: #6c757d; border-top: 1px solid #e9ecef;">

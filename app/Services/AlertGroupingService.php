@@ -13,8 +13,9 @@ class AlertGroupingService
     public const LAST_RUN_CACHE_KEY = 'alerts:group-similar:last-run';
 
     /**
-     * Executa a varredura completa (normaliza grupos e agrupa pendentes e
-     * resolvidos). Usado tanto pelo agendamento quanto pela interface.
+     * Executa a varredura completa (normaliza grupos e agrupa os alertas
+     * pendentes e os ignorados). Alertas resolvidos não são considerados.
+     * Usado tanto pelo agendamento quanto pela interface.
      * O resultado da última execução fica guardado em cache.
      */
     public function run(?float $threshold = null, string $origem = 'agendamento'): array
@@ -27,7 +28,7 @@ class AlertGroupingService
             'threshold' => $threshold,
             'raizes_corrigidas' => $this->normalizeGroups(),
             'pendentes_agrupados' => $this->groupPendingAlerts($threshold),
-            'resolvidos_agrupados' => $this->groupResolvedAlerts($threshold),
+            'ignorados_agrupados' => $this->groupIgnoredAlerts($threshold),
         ];
 
         Cache::forever(self::LAST_RUN_CACHE_KEY, $result);
@@ -45,14 +46,15 @@ class AlertGroupingService
         return $this->groupByStatus('pendente', $threshold ?? self::DEFAULT_SIMILARITY_THRESHOLD);
     }
 
-    public function groupResolvedAlerts(?float $threshold = null): int
+    public function groupIgnoredAlerts(?float $threshold = null): int
     {
-        return $this->groupByStatus('resolvido', $threshold ?? self::DEFAULT_SIMILARITY_THRESHOLD);
+        return $this->groupByStatus(Alert::STATUS_IGNORADO, $threshold ?? self::DEFAULT_SIMILARITY_THRESHOLD);
     }
 
     /**
      * Agrupa um único alerta (ex.: recém-cadastrado pela interface) a um grupo
-     * existente similar, com o mesmo status. Retorna a raiz do grupo, ou null se
+     * similar com o mesmo status (pendente com pendente, ignorado com ignorado).
+     * Alertas resolvidos não são agrupados. Retorna a raiz do grupo, ou null se
      * não encontrou nenhum similar.
      */
     public function groupAlert(Alert $alert, ?float $threshold = null): ?Alert
@@ -61,6 +63,10 @@ class AlertGroupingService
 
         if (!$alert->isRoot()) {
             return $alert->groupRoot();
+        }
+
+        if (!in_array($alert->status_resolucao, Alert::GROUPABLE_STATUSES, true)) {
+            return null;
         }
 
         $roots = Alert::query()
@@ -84,7 +90,7 @@ class AlertGroupingService
     }
 
     /**
-     * Corrige grupos existentes:
+     * Corrige grupos pendentes e ignorados (resolvidos não são olhados):
      *  - achata hierarquias aninhadas (neto -> raiz);
      *  - garante que a raiz de cada grupo seja sempre o alerta mais antigo.
      * Retorna quantos grupos tiveram a raiz trocada.
@@ -97,6 +103,7 @@ class AlertGroupingService
 
         Alert::query()
             ->whereNull('parent_id')
+            ->whereIn('status_resolucao', Alert::GROUPABLE_STATUSES)
             ->whereHas('children')
             ->orderBy('id')
             ->get()
@@ -192,6 +199,7 @@ class AlertGroupingService
             $oldest->comentario = $root->comentario ?? $oldest->comentario;
             $oldest->resolvido_por_id = $root->resolvido_por_id;
             $oldest->resolvido_em = $root->resolvido_em;
+            $oldest->ignore_rule_id = $root->ignore_rule_id;
             $oldest->save();
 
             Alert::query()
@@ -214,6 +222,7 @@ class AlertGroupingService
         do {
             $nested = Alert::query()
                 ->whereNotNull('parent_id')
+                ->whereIn('status_resolucao', Alert::GROUPABLE_STATUSES)
                 ->whereHas('parent', fn ($q) => $q->whereNotNull('parent_id'))
                 ->with('parent')
                 ->get();

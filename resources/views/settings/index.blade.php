@@ -20,8 +20,9 @@
                 <div class="card-body">
                     <h2 class="h5 mb-1"><i class="fas fa-layer-group text-primary me-2"></i>Agrupamento de alertas similares</h2>
                     <p class="text-muted small">
-                        A varredura roda automaticamente a cada 5 minutos. Ela agrupa alertas do mesmo serviço
+                        A varredura roda automaticamente a cada 5 minutos. Ela agrupa alertas pendentes (e, separadamente, os ignorados) do mesmo serviço
                         com mensagens parecidas sob o alerta mais antigo e corrige grupos cuja raiz não seja o mais antigo.
+                        Alertas resolvidos não são considerados.
                         Use o botão abaixo para forçar a execução agora.
                     </p>
 
@@ -36,8 +37,7 @@
                                 {{ $lastRun['executado_em']->format('d/m/Y H:i:s') }}
                                 <span class="text-muted">({{ $lastRun['executado_em']->diffForHumans() }}, {{ $lastRun['origem'] }})</span>
                                 <div class="text-muted">
-                                    {{ $lastRun['pendentes_agrupados'] }} pendente(s),
-                                    {{ $lastRun['resolvidos_agrupados'] }} resolvido(s) agrupados,
+                                    {{ $lastRun['pendentes_agrupados'] }} pendente(s) e {{ $lastRun['ignorados_agrupados'] ?? 0 }} ignorado(s) agrupado(s),
                                     {{ $lastRun['raizes_corrigidas'] }} raiz(es) corrigida(s)
                                     — similaridade {{ $lastRun['threshold'] }}%
                                 </div>

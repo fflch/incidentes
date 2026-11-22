@@ -4,6 +4,8 @@
 @php
     $rootAlert = $diag['root'];
     $isPending = $rootAlert->status_resolucao === 'pendente';
+    $isIgnored = $rootAlert->isIgnored();
+    $heroClass = $isPending ? 'is-pending' : ($isIgnored ? 'is-ignored' : 'is-resolved');
     $sigIndex = $diag['signatures']->pluck('signature')->flip();
     $sigLetter = fn ($sig) => chr(65 + min(25, (int) ($sigIndex[$sig] ?? 0)));
     $human = [\App\Services\AlertDiagnosticsService::class, 'humanMinutes'];
@@ -30,13 +32,13 @@
     @endif
 
     <!-- Cabeçalho -->
-    <section class="ad-hero {{ $isPending ? 'is-pending' : 'is-resolved' }} mb-4">
+    <section class="ad-hero {{ $heroClass }} mb-4">
         <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
             <div class="min-w-0">
                 <div class="d-flex align-items-center gap-2 flex-wrap mb-2">
                     <span class="ad-status">
-                        <i class="fas {{ $isPending ? 'fa-exclamation-triangle' : 'fa-check' }} me-1"></i>
-                        {{ $isPending ? 'Pendente' : 'Resolvido' }}
+                        <i class="fas {{ $isPending ? 'fa-exclamation-triangle' : ($isIgnored ? 'fa-eye-slash' : 'fa-check') }} me-1"></i>
+                        {{ $isPending ? 'Pendente' : ($isIgnored ? 'Ignorado' : 'Resolvido') }}
                     </span>
                     <span class="ad-chip">{{ $alert->type }}</span>
                     <span class="ad-chip">Alerta #{{ $rootAlert->id }}</span>
@@ -46,7 +48,14 @@
                 </div>
                 <h1 class="ad-title">{{ $alert->service_name ?? $alert->type }}</h1>
                 <div class="ad-sub">
-                    @if($rootAlert->atribuidoUser)
+                    @if($isIgnored)
+                        <i class="fas fa-eye-slash me-1"></i>
+                        @if($rootAlert->ignoreRule)
+                            Ignorado pela regra <strong>"{{ $rootAlert->ignoreRule->pattern }}"</strong>
+                        @else
+                            Ignorado
+                        @endif
+                    @elseif($rootAlert->atribuidoUser)
                         <i class="fas fa-user me-1"></i> Responsável: <strong>{{ $rootAlert->atribuidoUser->name }}</strong>
                     @else
                         <i class="fas fa-user-slash me-1"></i> <strong>Sem responsável</strong>
@@ -123,6 +132,10 @@
                     <div class="ad-kpi-label">Em aberto há</div>
                     <div class="ad-kpi-value ad-kpi-sm">{{ $human($diag['open_minutes']) }}</div>
                     <div class="ad-kpi-foot">{{ $diag['last_1h'] }} na última hora</div>
+                @elseif($isIgnored)
+                    <div class="ad-kpi-label">Ignorado</div>
+                    <div class="ad-kpi-value ad-kpi-sm">{{ $rootAlert->resolvido_em?->format('d/m H:i') ?? '—' }}</div>
+                    <div class="ad-kpi-foot">sem notificação</div>
                 @else
                     <div class="ad-kpi-label">Resolvido</div>
                     <div class="ad-kpi-value ad-kpi-sm">{{ $rootAlert->dataResolucao()?->format('d/m H:i') ?? '—' }}</div>
@@ -236,7 +249,12 @@
                 <div class="card-body p-4">
                     <h5 class="card-title fw-bold mb-3"><i class="fas fa-bolt text-warning me-1"></i> Ações</h5>
 
-                    @if((int) $rootAlert->atribuido !== (int) auth()->id())
+                    @if($isIgnored)
+                        <div class="alert alert-secondary py-2 small mb-2">
+                            <i class="fas fa-eye-slash me-1"></i>
+                            Alerta ignorado: fica arquivado, sem responsável e sem e-mail para ninguém.
+                        </div>
+                    @elseif((int) $rootAlert->atribuido !== (int) auth()->id())
                         <form method="POST" action="{{ route('alerts.assign-me', $alert) }}" class="mb-2"
                               @if($rootAlert->atribuido) onsubmit="return confirm({{ Js::from('Este alerta está atribuído a ' . ($rootAlert->atribuidoUser?->name ?? 'outra pessoa') . '. Deseja assumi-lo?') }});" @endif>
                             @csrf
@@ -258,16 +276,16 @@
                         </button>
                     @else
                         @can('admin')
-                            <form method="POST" action="{{ route('alerts.reopen', $alert) }}" class="mb-2" onsubmit="return confirm('Deseja reabrir este alerta?');">
+                            <form method="POST" action="{{ route('alerts.reopen', $alert) }}" class="mb-2" onsubmit="return confirm({{ Js::from($isIgnored ? 'Reativar este alerta? Ele volta para os pendentes.' : 'Deseja reabrir este alerta?') }});">
                                 @csrf
                                 <button type="submit" class="btn btn-outline-warning w-100 py-2">
-                                    <i class="fas fa-undo me-1"></i> Reabrir alerta
+                                    <i class="fas fa-undo me-1"></i> {{ $isIgnored ? 'Reativar alerta' : 'Reabrir alerta' }}
                                 </button>
                             </form>
                         @endcan
                     @endif
 
-                    @can('admin')
+                    @if(!$isIgnored && auth()->user()?->can('admin'))
                         <div class="pt-3 mt-2 border-top">
                             <label class="form-label fw-bold text-muted small"><i class="fas fa-user-tag me-1"></i> Atribuir / reatribuir responsável</label>
                             <form method="POST" action="{{ route('alerts.assign-user', $rootAlert) }}" id="assignUserForm">
@@ -285,7 +303,7 @@
                                 <div class="form-text small">A alteração é salva automaticamente e vale para todas as repetições.</div>
                             </form>
                         </div>
-                    @endcan
+                    @endif
                 </div>
             </div>
 
@@ -305,15 +323,28 @@
                         <dt class="col-5 text-muted fw-normal">Ocorrência</dt>
                         <dd class="col-7 mb-0">{{ $alert->data_ocorrencia?->format('d/m/Y H:i:s') }}</dd>
 
+                        @if($isIgnored)
+                            <dt class="col-5 text-muted fw-normal">Ignorado em</dt>
+                            <dd class="col-7 mb-0 fw-semibold">{{ $rootAlert->resolvido_em?->format('d/m/Y H:i') ?? '—' }}</dd>
+                            <dt class="col-5 text-muted fw-normal">Regra</dt>
+                            <dd class="col-7 mb-0 text-break">
+                                @if($rootAlert->ignoreRule)
+                                    <code>{{ $rootAlert->ignoreRule->pattern }}</code>
+                                @else
+                                    manual / regra removida
+                                @endif
+                            </dd>
+                        @else
                         <dt class="col-5 text-muted fw-normal">Responsável</dt>
                         <dd class="col-7 mb-0">{{ $rootAlert->atribuidoUser?->name ?? 'Não atribuído' }}</dd>
+                        @endif
 
-                        @unless($isPending)
+                        @if(!$isPending && !$isIgnored)
                             <dt class="col-5 text-muted fw-normal">Resolvido em</dt>
                             <dd class="col-7 mb-0 text-success fw-semibold">{{ $rootAlert->dataResolucao()?->format('d/m/Y H:i') ?? '—' }}</dd>
                             <dt class="col-5 text-muted fw-normal">Resolvido por</dt>
                             <dd class="col-7 mb-0">{{ $rootAlert->resolvidoPor?->name ?? 'Sistema' }}</dd>
-                        @endunless
+                        @endif
                     </dl>
 
                     @if($rootAlert->comentario)
@@ -606,6 +637,8 @@
     .ad-status { background: rgba(255,255,255,.95); color: #101828; font-weight: 700; font-size: .75rem; text-transform: uppercase; letter-spacing: .05em; padding: 5px 12px; border-radius: 999px; }
     .is-pending .ad-status { color: #b42318; }
     .is-resolved .ad-status { color: #067647; }
+    .ad-hero.is-ignored  { background: linear-gradient(135deg, #1d2939 0%, #344054 55%, #667085 100%); }
+    .is-ignored .ad-status { color: #475467; }
     .ad-chip { background: rgba(255,255,255,.15); font-size: .78rem; padding: 4px 10px; border-radius: 999px; }
     .ad-btn-ghost { color: #fff; border: 1px solid rgba(255,255,255,.35); background: rgba(255,255,255,.08); }
     .ad-btn-ghost:hover { color: #fff; background: rgba(255,255,255,.2); }

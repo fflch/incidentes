@@ -22,8 +22,18 @@ $menu = [
         'can' => 'admin',
     ],
     [
+        'text' => '<i class="fas fa-archive me-1"></i> Alertas Ignorados',
+        'url' => 'alerts/ignorados',
+        'can' => 'admin',
+    ],
+    [
         'text' => '<i class="fas fa-magic me-1"></i> Regras de Atribuição',
         'url' => 'assignment-rules',
+        'can' => 'admin',
+    ],
+    [
+        'text' => '<i class="fas fa-eye-slash me-1"></i> Regras para Ignorar',
+        'url' => 'ignore-rules',
         'can' => 'admin',
     ],
 ];

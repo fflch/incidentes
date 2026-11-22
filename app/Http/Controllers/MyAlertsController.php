@@ -28,6 +28,8 @@ class MyAlertsController extends Controller
             $query->where('status_resolucao', 'pendente');
         } elseif ($statusFilter === 'resolvido') {
             $query->where('status_resolucao', 'resolvido');
+        } else {
+            $query->where('status_resolucao', '!=', Alert::STATUS_IGNORADO);
         }
 
         if ($request->filled('search')) {

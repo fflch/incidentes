@@ -19,7 +19,7 @@ class AlertRequest extends FormRequest
             'service_name' => ['nullable', 'string', 'max:100'],
             'data_ocorrencia' => ['required', 'date'],
             'mensagem' => ['required', 'string'],
-            'status_resolucao' => ['nullable', 'in:pendente,resolvido'],
+            'status_resolucao' => ['nullable', 'in:pendente,resolvido,ignorado'],
             'comentario' => ['nullable', 'string', 'required_if:status_resolucao,resolvido'],
             'atribuido' => ['nullable', 'exists:users,id'],
             'parent_id' => ['nullable', 'exists:alerts,id'],

@@ -66,6 +66,8 @@ class IndexController extends Controller
                     'idade_minutos' => $alert->data_ocorrencia ? (int) $alert->data_ocorrencia->diffInMinutes($now) : 0,
                     'repeticoes' => (int) $alert->children_count,
                     'ultima_ocorrencia_relativa' => $alert->children_count > 0 ? $ultima?->diffForHumans() : null,
+                    'ultima_ocorrencia_ts' => $ultima?->getTimestamp(),
+                    'ultima_ocorrencia_obj' => $ultima,
                     'atribuido_nome' => $alert->atribuidoUser ? $alert->atribuidoUser->name : 'Não atribuído',
                     'atribuido_id' => $alert->atribuido,
                     'status_resolucao' => $alert->status_resolucao,
@@ -74,12 +76,18 @@ class IndexController extends Controller
             ->values();
 
         $oldest = $alerts->sortByDesc('idade_minutos')->first();
+        // Alerta pendente mais recente (considera também as repetições agrupadas)
+        $newest = $alerts->sortByDesc('ultima_ocorrencia_ts')->first();
+        $ultimoRecebido = $newest['ultima_ocorrencia_obj'] ?? null;
+        $alerts = $alerts->map(fn ($a) => collect($a)->except(['ultima_ocorrencia_ts', 'ultima_ocorrencia_obj'])->all())->values();
 
         return [
             'total' => $alerts->count(),
             'nao_atribuidos' => $alerts->whereNull('atribuido_id')->count(),
             'ocorrencias' => $alerts->sum(fn ($a) => $a['repeticoes'] + 1),
             'mais_antigo_relativo' => $oldest['data_ocorrencia_relativa'] ?? null,
+            'ultimo_recebido_relativo' => $ultimoRecebido?->diffForHumans(),
+            'ultimo_recebido_formatado' => $ultimoRecebido?->format('d/m/Y H:i'),
             'updated_at' => $now->format('H:i:s'),
             'updated_at_full' => $now->format('d/m/Y H:i:s'),
             'alerts' => $alerts,

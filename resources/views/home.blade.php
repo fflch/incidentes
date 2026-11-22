@@ -45,7 +45,7 @@
 
     <!-- Indicadores -->
     <section class="row g-3 mb-4">
-        <div class="col-6 col-lg-3">
+        <div class="col-6 col-md-4 col-xl">
             <div class="ip-stat">
                 <div class="ip-stat-icon bg-danger-subtle text-danger"><i class="fas fa-fire"></i></div>
                 <div>
@@ -54,7 +54,7 @@
                 </div>
             </div>
         </div>
-        <div class="col-6 col-lg-3">
+        <div class="col-6 col-md-4 col-xl">
             <div class="ip-stat">
                 <div class="ip-stat-icon bg-warning-subtle text-warning-emphasis"><i class="fas fa-user-slash"></i></div>
                 <div>
@@ -63,7 +63,7 @@
                 </div>
             </div>
         </div>
-        <div class="col-6 col-lg-3">
+        <div class="col-6 col-md-4 col-xl">
             <div class="ip-stat">
                 <div class="ip-stat-icon bg-primary-subtle text-primary"><i class="fas fa-layer-group"></i></div>
                 <div>
@@ -72,12 +72,22 @@
                 </div>
             </div>
         </div>
-        <div class="col-6 col-lg-3">
+        <div class="col-6 col-md-4 col-xl">
             <div class="ip-stat">
                 <div class="ip-stat-icon bg-secondary-subtle text-secondary"><i class="fas fa-hourglass-half"></i></div>
                 <div>
                     <div class="ip-stat-value ip-stat-value-sm" id="statOldest">—</div>
                     <div class="ip-stat-label">Incidente mais antigo</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-4 col-xl">
+            <div class="ip-stat">
+                <div class="ip-stat-icon bg-info-subtle text-info-emphasis"><i class="fas fa-inbox"></i></div>
+                <div>
+                    <div class="ip-stat-value ip-stat-value-sm" id="statNewest">—</div>
+                    <div class="ip-stat-label">Último alerta recebido</div>
+                    <div class="small text-muted" id="statNewestDate"></div>
                 </div>
             </div>
         </div>
@@ -292,6 +302,8 @@
         document.getElementById('statUnassigned').textContent = panelData.nao_atribuidos;
         document.getElementById('statOccurrences').textContent = panelData.ocorrencias;
         document.getElementById('statOldest').textContent = panelData.mais_antigo_relativo || '—';
+        document.getElementById('statNewest').textContent = panelData.ultimo_recebido_relativo || '—';
+        document.getElementById('statNewestDate').textContent = panelData.ultimo_recebido_formatado || '';
         document.getElementById('lastUpdatedTime').textContent = panelData.updated_at;
 
         document.getElementById('countTodos').textContent = total;

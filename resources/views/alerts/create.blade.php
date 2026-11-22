@@ -66,6 +66,7 @@
                         <select name="status_resolucao" class="form-select">
                             <option value="pendente" {{ old('status_resolucao', 'pendente') === 'pendente' ? 'selected' : '' }}>Pendente</option>
                             <option value="resolvido" {{ old('status_resolucao') === 'resolvido' ? 'selected' : '' }}>Resolvido</option>
+                            <option value="ignorado" {{ old('status_resolucao') === 'ignorado' ? 'selected' : '' }}>Ignorado</option>
                         </select>
                     </div>
 

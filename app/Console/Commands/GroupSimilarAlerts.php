@@ -16,21 +16,19 @@ class GroupSimilarAlerts extends Command
     {
         $threshold = (float) $this->option('threshold');
 
-        $rootAlerts = Alert::query()->whereNull('parent_id')->count();
         $pendingBefore = Alert::query()->whereNull('parent_id')->where('status_resolucao', 'pendente')->count();
-        $resolvedBefore = Alert::query()->whereNull('parent_id')->where('status_resolucao', 'resolvido')->count();
 
         $result = $groupingService->run($threshold);
         $fixedRoots = $result['raizes_corrigidas'];
         $groupedPending = $result['pendentes_agrupados'];
-        $groupedResolved = $result['resolvidos_agrupados'];
+        $groupedIgnored = $result['ignorados_agrupados'];
 
         if ($fixedRoots > 0) {
             $this->warn("{$fixedRoots} grupo(s) tiveram a raiz corrigida para o alerta mais antigo.");
         }
 
-        $this->info("Agrupamento concluído: {$groupedPending} pendentes e {$groupedResolved} resolvidos agrupados.");
-        $this->line("Raizes atuais: {$rootAlerts} | pendentes: {$pendingBefore} | resolvidos: {$resolvedBefore}");
+        $this->info("Agrupamento concluído: {$groupedPending} pendente(s) e {$groupedIgnored} ignorado(s) agrupado(s).");
+        $this->line("Alertas principais pendentes antes da varredura: {$pendingBefore}");
 
         return self::SUCCESS;
     }

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\AlertRequest;
 use App\Models\Alert;
 use App\Models\AlertComment;
+use App\Models\IgnoreRule;
 use App\Models\User;
 use App\Services\AlertDiagnosticsService;
 use App\Services\AlertGroupingService;
@@ -44,6 +45,37 @@ class AlertController extends Controller
             'title' => 'Alertas resolvidos',
             'statusFilter' => 'resolvido',
             'users' => User::getAdmins(),
+        ]);
+    }
+
+    /**
+     * Alertas ignorados (arquivados por regra): ninguém é notificado sobre eles.
+     */
+    public function ignored(Request $request)
+    {
+        $alerts = Alert::query()
+            ->with('ignoreRule')
+            ->withCount('children')
+            ->withMax('children', 'data_ocorrencia')
+            ->ignorado()
+            ->when($request->filled('regra'), fn ($q) => $q->where('ignore_rule_id', $request->integer('regra')))
+            ->when($request->filled('search'), function ($query) use ($request) {
+                $term = '%' . $request->search . '%';
+                $query->where(function ($q) use ($term) {
+                    $q->where('id_externo', 'like', $term)
+                        ->orWhere('service_name', 'like', $term)
+                        ->orWhere('type', 'like', $term)
+                        ->orWhere('mensagem', 'like', $term);
+                });
+            })
+            ->orderByDesc('data_ocorrencia')
+            ->paginate(20)
+            ->withQueryString();
+
+        return view('alerts.ignored', [
+            'alerts' => $alerts,
+            'regra' => $request->filled('regra') ? IgnoreRule::find($request->integer('regra')) : null,
+            'totalIgnorados' => Alert::ignorado()->count(),
         ]);
     }
 
@@ -95,10 +127,18 @@ class AlertController extends Controller
             ? app(AlertGroupingService::class)->groupAlert($alert)
             : null;
 
+        $avisoIgnorado = $alert->isIgnored()
+            ? ' Ele foi ignorado pela regra "' . $alert->ignoreRule?->pattern . '" e ficou arquivado em Alertas Ignorados.'
+            : '';
+
         if ($groupRoot) {
             return redirect()
                 ->route('alerts.show', $groupRoot)
-                ->with('success', "Alerta cadastrado e agrupado ao alerta #{$groupRoot->id} (similar e mais antigo).");
+                ->with('success', "Alerta cadastrado e agrupado ao alerta #{$groupRoot->id} (similar e mais antigo)." . $avisoIgnorado);
+        }
+
+        if ($avisoIgnorado) {
+            return redirect()->route('alerts.show', $alert)->with('success', 'Alerta cadastrado.' . $avisoIgnorado);
         }
 
         return redirect()->route('home')->with('success', 'Alerta cadastrado com sucesso.');
@@ -122,6 +162,7 @@ class AlertController extends Controller
     public function assignToMe(Request $request, Alert $alert)
     {
         $root = $alert->groupRoot();
+        abort_if($root->isIgnored(), 422, 'Alertas ignorados não têm responsável.');
         $userId = auth()->id();
 
         if ((int) $root->atribuido !== (int) $userId) {
@@ -196,6 +237,7 @@ class AlertController extends Controller
     {
         $data = $request->validated();
         $oldAtribuido = $alert->atribuido;
+        $estavaPendente = $alert->status_resolucao === 'pendente';
 
         if ($request->filled('status_resolucao')) {
             $alert->status_resolucao = $request->status_resolucao;
@@ -206,11 +248,20 @@ class AlertController extends Controller
                 if ($alert->atribuido !== auth()->id()) {
                     $alert->atribuido = auth()->id();
                 }
+                $alert->ignore_rule_id = null;
             }
 
             if ($request->status_resolucao === 'pendente') {
                 $alert->resolvido_por_id = null;
                 $alert->resolvido_em = null;
+                $alert->ignore_rule_id = null;
+            }
+
+            if ($request->status_resolucao === Alert::STATUS_IGNORADO
+                && $alert->getOriginal('status_resolucao') !== Alert::STATUS_IGNORADO) {
+                // Ignorado manualmente pela edição (sem regra)
+                $alert->resolvido_por_id = null;
+                $alert->resolvido_em = now();
             }
         }
 
@@ -227,11 +278,26 @@ class AlertController extends Controller
         }
 
         $alert->fill($data);
+
+        // Alerta ignorado não tem responsável
+        if ($alert->isIgnored()) {
+            $alert->atribuido = null;
+        }
+
         $alert->save();
 
         if ($alert->atribuido != $oldAtribuido && $alert->isRoot()) {
             // Repetições seguem sempre o responsável do principal
             $alert->children()->update(['atribuido' => $alert->atribuido]);
+        }
+
+        // Ignorar o principal pela edição ignora o grupo inteiro
+        if ($alert->isIgnored() && $alert->isRoot() && $alert->wasChanged('status_resolucao')) {
+            $alert->ignoreGroup($alert->ignoreRule);
+        }
+
+        if ($estavaPendente && $alert->status_resolucao === 'resolvido' && $alert->isRoot()) {
+            AlertNotificationService::notifyResolved($alert);
         }
 
         return redirect()->route('alerts.show', ['alert' => $alert])->with('success', 'Alerta atualizado.');
@@ -258,7 +324,12 @@ class AlertController extends Controller
 
         $userId = auth()->id();
         $root = $alert->groupRoot();
+        $estavaPendente = $root->status_resolucao === 'pendente';
         $root->resolveGroup(trim($validated['comentario']), $userId);
+
+        if ($estavaPendente) {
+            AlertNotificationService::notifyResolved($root);
+        }
 
         if ($request->expectsJson() || $request->ajax()) {
             return response()->json([
@@ -278,9 +349,13 @@ class AlertController extends Controller
     {
         Gate::authorize('admin');
 
-        $alert->groupRoot()->reopenGroup();
+        $root = $alert->groupRoot();
+        $eraIgnorado = $root->isIgnored();
+        $root->reopenGroup();
 
-        return back()->with('success', 'Alerta reaberto com sucesso.');
+        return back()->with('success', $eraIgnorado
+            ? 'Alerta reativado: voltou para os pendentes.'
+            : 'Alerta reaberto com sucesso.');
     }
 
     /**
@@ -296,6 +371,7 @@ class AlertController extends Controller
 
         // A atribuição vale sempre para o grupo inteiro (principal + repetições)
         $root = $alert->groupRoot();
+        abort_if($root->isIgnored(), 422, 'Alertas ignorados não têm responsável.');
         $newAtribuido = $request->input('atribuido') ?: null;
 
         $root = $root->assignGroup($newAtribuido ? (int) $newAtribuido : null);
@@ -343,7 +419,12 @@ class AlertController extends Controller
         }
 
         foreach ($roots as $root) {
+            $estavaPendente = $root->status_resolucao === 'pendente';
             $root->resolveGroup(trim($validated['comentario']), $userId);
+
+            if ($estavaPendente) {
+                AlertNotificationService::notifyResolved($root);
+            }
         }
 
         return back()->with('success', 'Resolvidos ' . $roots->count() . ' grupo(s) de alertas em lote com sucesso.');

@@ -17,6 +17,7 @@ class AlertCommentMail extends Mailable
     public function __construct(
         public Alert $alert,
         public AlertComment $comment,
+        public bool $paraGestao = false,
     ) {
     }
 

@@ -3,6 +3,7 @@
 use App\Http\Controllers\AlertController;
 use App\Http\Controllers\AssignmentRuleController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\IgnoreRuleController;
 use App\Http\Controllers\IndexController;
 use App\Http\Controllers\MyAlertsController;
 use App\Http\Controllers\SettingsController;
@@ -41,6 +42,9 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/alerts/resolvidos', [AlertController::class, 'resolved'])->name('alerts.resolved');
         Route::get('/alertas/resolvidos', fn() => redirect()->route('alerts.resolved'));
 
+        // Alertas ignorados (arquivados por regra, sem notificar ninguém)
+        Route::get('/alerts/ignorados', [AlertController::class, 'ignored'])->name('alerts.ignored');
+
         // CRUD Alertas
         Route::get('/alerts/create', [AlertController::class, 'create'])->name('alerts.create');
         Route::post('/alerts', [AlertController::class, 'store'])->name('alerts.store');
@@ -53,6 +57,9 @@ Route::middleware(['auth'])->group(function () {
 
         // Regras de atribuição automática
         Route::resource('assignment-rules', AssignmentRuleController::class);
+
+        // Regras para ignorar alertas (texto na mensagem)
+        Route::resource('ignore-rules', IgnoreRuleController::class)->except('show');
 
         // Configurações / manutenção
         Route::get('/configuracoes', [SettingsController::class, 'index'])->name('settings.index');

@@ -55,9 +55,9 @@ class SettingsController extends Controller
         return redirect()
             ->route('settings.index')
             ->with('success', sprintf(
-                'Varredura concluída: %d pendente(s) e %d resolvido(s) agrupados; %d grupo(s) com raiz corrigida.',
+                'Varredura concluída: %d pendente(s) e %d ignorado(s) agrupado(s); %d grupo(s) com raiz corrigida.',
                 $result['pendentes_agrupados'],
-                $result['resolvidos_agrupados'],
+                $result['ignorados_agrupados'],
                 $result['raizes_corrigidas'],
             ));
     }

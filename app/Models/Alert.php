@@ -20,7 +20,15 @@ class Alert extends Model
         'resolvido_por_id',
         'resolvido_em',
         'parent_id',
+        'ignore_rule_id',
     ];
+
+    public const STATUS_PENDENTE = 'pendente';
+    public const STATUS_RESOLVIDO = 'resolvido';
+    public const STATUS_IGNORADO = 'ignorado';
+
+    /** Status cujos alertas passam pelo agrupamento de similares. */
+    public const GROUPABLE_STATUSES = [self::STATUS_PENDENTE, self::STATUS_IGNORADO];
 
     protected $casts = [
         'data_ocorrencia' => 'datetime',
@@ -30,9 +38,23 @@ class Alert extends Model
     protected static function booted(): void
     {
         static::creating(function (Alert $alert) {
+            // Alerta novo e pendente cuja mensagem contém um texto cadastrado em
+            // "Regras para ignorar" já nasce ignorado: fica arquivado e não é
+            // atribuído nem notificado a ninguém.
+            if (($alert->status_resolucao ?? self::STATUS_PENDENTE) === self::STATUS_PENDENTE && empty($alert->parent_id)) {
+                $rule = IgnoreRule::findForMessage($alert->mensagem);
+                if ($rule) {
+                    $alert->status_resolucao = self::STATUS_IGNORADO;
+                    $alert->ignore_rule_id = $rule->id;
+                    $alert->resolvido_em = now();
+                    $alert->resolvido_por_id = null;
+                    $alert->atribuido = null;
+                }
+            }
+
             // Se não foi atribuído manualmente, aplica a regra de atribuição automática
             // (pelo nome do serviço ou, na falta de regra para ele, pelo tipo)
-            if (empty($alert->atribuido)) {
+            if (empty($alert->atribuido) && $alert->status_resolucao !== self::STATUS_IGNORADO) {
                 $rule = AssignmentRule::findForAlert($alert);
                 if ($rule) {
                     $alert->atribuido = $rule->user_id;
@@ -64,6 +86,16 @@ class Alert extends Model
     public function resolvidoPor()
     {
         return $this->belongsTo(User::class, 'resolvido_por_id');
+    }
+
+    public function ignoreRule()
+    {
+        return $this->belongsTo(IgnoreRule::class);
+    }
+
+    public function isIgnored(): bool
+    {
+        return $this->status_resolucao === self::STATUS_IGNORADO;
     }
 
     public function comments()
@@ -125,6 +157,11 @@ class Alert extends Model
     public function scopeResolvido(Builder $query): Builder
     {
         return $query->where('status_resolucao', 'resolvido')->whereNull('parent_id');
+    }
+
+    public function scopeIgnorado(Builder $query): Builder
+    {
+        return $query->where('status_resolucao', self::STATUS_IGNORADO)->whereNull('parent_id');
     }
 
     public function isRoot(): bool
@@ -218,6 +255,27 @@ class Alert extends Model
         }
     }
 
+    /**
+     * Ignora o grupo inteiro (principal + repetições) por causa de uma regra.
+     * Alerta ignorado não tem responsável.
+     */
+    public function ignoreGroup(?IgnoreRule $rule = null): void
+    {
+        $root = $this->groupRoot();
+
+        foreach ($root->children()->get()->merge([$root]) as $alert) {
+            $alert->status_resolucao = self::STATUS_IGNORADO;
+            $alert->ignore_rule_id = $rule?->id;
+            $alert->atribuido = null;
+            $alert->resolvido_por_id = null;
+            $alert->resolvido_em = now();
+            $alert->save();
+        }
+    }
+
+    /**
+     * Volta o grupo para pendente (reabre um resolvido ou reativa um ignorado).
+     */
     public function reopenGroup(): void
     {
         $root = $this->groupRoot();
@@ -226,6 +284,7 @@ class Alert extends Model
             $alert->status_resolucao = 'pendente';
             $alert->resolvido_por_id = null;
             $alert->resolvido_em = null;
+            $alert->ignore_rule_id = null;
             $alert->save();
         }
     }
@@ -263,6 +322,14 @@ class Alert extends Model
             return null;
         }
 
+        return self::formatarDuracao($minutos);
+    }
+
+    /**
+     * Formata uma duração em minutos (ex: '2h 15m', '45 min', '3d 4h')
+     */
+    public static function formatarDuracao(int $minutos): string
+    {
         if ($minutos < 1) {
             return 'Menos de 1 min';
         }
@@ -286,6 +353,6 @@ class Alert extends Model
 
     public static function statusOptions(): array
     {
-        return ['pendente', 'resolvido'];
+        return [self::STATUS_PENDENTE, self::STATUS_RESOLVIDO, self::STATUS_IGNORADO];
     }
 }

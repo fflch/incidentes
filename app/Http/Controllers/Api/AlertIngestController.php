@@ -68,6 +68,7 @@ class AlertIngestController extends Controller
             'id' => $alert->id,
             'parent_id' => $alert->parent_id,
             'atribuido' => $alert->atribuido,
+            'status' => $alert->status_resolucao,
         ], $created ? 201 : 200);
     }
 }

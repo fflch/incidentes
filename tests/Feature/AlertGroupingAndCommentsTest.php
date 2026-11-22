@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Mail\AlertCommentMail;
+use App\Mail\AlertResolvedMail;
 use App\Models\Alert;
 use App\Models\User;
 use App\Services\AlertGroupingService;
@@ -124,7 +125,7 @@ class AlertGroupingAndCommentsTest extends TestCase
             ->post(route('alerts.comments.store', $alert), ['comentario' => 'Eu mesmo'])
             ->assertRedirect();
 
-        Mail::assertNothingSent();
+        Mail::assertNotSent(AlertCommentMail::class, fn ($m) => $m->hasTo($responsavel->email));
         $this->assertSame(2, $alert->comments()->count());
 
         $this->actingAs($outro)->get(route('alerts.show', $alert))
@@ -291,5 +292,114 @@ class AlertGroupingAndCommentsTest extends TestCase
             ->assertOk()
             ->assertSee('Meus alertas')
             ->assertSee('2 ocorrências');
+    }
+
+    public function test_comentario_em_alerta_aberto_vai_para_gestao(): void
+    {
+        Mail::fake();
+        config(['mail.emails_gestao' => ['gestao@example.com', 'chefia@example.com']]);
+        Gate::define('admin', fn () => true);
+
+        $responsavel = User::factory()->create();
+        $alert = $this->alert('1', '2026-11-10 08:00:00', ['atribuido' => $responsavel->id]);
+
+        $this->actingAs($responsavel)
+            ->post(route('alerts.comments.store', $alert), ['comentario' => 'Investigando o banco'])
+            ->assertRedirect();
+
+        Mail::assertSent(AlertCommentMail::class, 1);
+        Mail::assertSent(AlertCommentMail::class, fn ($m) => $m->paraGestao
+            && $m->hasTo('gestao@example.com')
+            && $m->hasTo('chefia@example.com'));
+
+        // Alerta já fechado: comentário não vai para a gestão
+        $alert->resolveGroup('Resolvido', $responsavel->id);
+        Mail::fake();
+        $this->actingAs($responsavel)
+            ->post(route('alerts.comments.store', $alert), ['comentario' => 'Depois de fechado'])
+            ->assertRedirect();
+
+        Mail::assertNothingSent();
+    }
+
+    public function test_resolver_grupo_envia_um_unico_email_para_gestao(): void
+    {
+        Mail::fake();
+        config(['mail.emails_gestao' => ['gestao@example.com']]);
+        $user = User::factory()->create();
+
+        $root = $this->alert('1', now()->subHours(5)->subMinutes(30)->toDateTimeString(), ['atribuido' => $user->id]);
+        $filho = $this->alert('2', now()->subHours(3)->toDateTimeString(), ['parent_id' => $root->id]);
+        $this->alert('3', now()->subHour()->toDateTimeString(), ['parent_id' => $root->id]);
+
+        // Resolvendo a partir de um filho: um único e-mail, referente ao principal
+        $this->actingAs($user)
+            ->post(route('alerts.resolve', $filho), ['comentario' => 'Reiniciado o serviço'])
+            ->assertRedirect();
+
+        Mail::assertSent(AlertResolvedMail::class, 1);
+        Mail::assertSent(AlertResolvedMail::class, function ($m) use ($root) {
+            $html = $m->render();
+
+            return $m->hasTo('gestao@example.com')
+                && $m->alert->id === $root->id
+                && $m->repeticoes === 2
+                && $m->tempoAberto === '5h 30m'
+                && str_contains($html, '5h 30m')
+                && str_contains($html, 'Reiniciado o serviço');
+        });
+
+        // Resolver de novo um grupo já resolvido não reenvia
+        Mail::fake();
+        $this->actingAs($user)
+            ->post(route('alerts.resolve', $root), ['comentario' => 'De novo'])
+            ->assertRedirect();
+        Mail::assertNothingSent();
+    }
+
+    public function test_resolver_em_lote_envia_um_email_por_grupo(): void
+    {
+        Mail::fake();
+        config(['mail.emails_gestao' => ['gestao@example.com']]);
+        Gate::define('admin', fn () => true);
+        $user = User::factory()->create();
+
+        $a = $this->alert('1', '2026-11-10 08:00:00');
+        $filho = $this->alert('2', '2026-11-10 09:00:00', ['parent_id' => $a->id]);
+        $b = $this->alert('3', '2026-11-10 10:00:00', ['service_name' => 'Outro']);
+
+        $this->actingAs($user)->from('/')
+            ->post(route('alerts.bulk-resolve'), ['comentario' => 'Corrigido', 'ids' => [$a->id, $filho->id, $b->id]])
+            ->assertRedirect('/');
+
+        Mail::assertSent(AlertResolvedMail::class, 2);
+    }
+
+    public function test_agrupamento_ignora_alertas_resolvidos(): void
+    {
+        $resolvidoA = $this->alert('1', '2026-11-10 08:00:00', ['status_resolucao' => 'resolvido']);
+        $resolvidoB = $this->alert('2', '2026-11-10 09:00:00', ['status_resolucao' => 'resolvido']);
+
+        // Grupo resolvido com raiz "errada" (mais nova): não deve ser mexido
+        $raizNova = $this->alert('3', '2026-11-10 12:00:00', ['service_name' => 'Outro', 'status_resolucao' => 'resolvido']);
+        $filhoVelho = $this->alert('4', '2026-11-10 06:00:00', ['service_name' => 'Outro', 'status_resolucao' => 'resolvido', 'parent_id' => $raizNova->id]);
+
+        $pendente = $this->alert('5', '2026-11-11 08:00:00');
+
+        $result = app(AlertGroupingService::class)->run();
+
+        $this->assertArrayNotHasKey('resolvidos_agrupados', $result);
+        $this->assertNull($resolvidoB->fresh()->parent_id);
+        $this->assertNull($raizNova->fresh()->parent_id);
+        $this->assertSame($raizNova->id, $filhoVelho->fresh()->parent_id);
+
+        // Pendente similar a um resolvido não entra no grupo dele
+        $this->assertNull(app(AlertGroupingService::class)->groupAlert($pendente));
+        $this->assertNull($pendente->fresh()->parent_id);
+
+        // Resolvido novo também não é agrupado
+        $outroResolvido = $this->alert('6', '2026-11-12 08:00:00', ['status_resolucao' => 'resolvido']);
+        $this->assertNull(app(AlertGroupingService::class)->groupAlert($outroResolvido));
+        $this->assertNull($outroResolvido->fresh()->parent_id);
     }
 }

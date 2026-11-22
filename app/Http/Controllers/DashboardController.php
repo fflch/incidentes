@@ -18,7 +18,8 @@ class DashboardController extends Controller
     {
         Gate::authorize('admin');
 
-        $totalAlertas = Alert::whereNull('parent_id')->count();
+        // Alertas ignorados ficam fora das estatísticas
+        $totalAlertas = Alert::whereNull('parent_id')->where('status_resolucao', '!=', Alert::STATUS_IGNORADO)->count();
         $pendentes = Alert::whereNull('parent_id')->where('status_resolucao', 'pendente')->count();
         $resolvidos = Alert::whereNull('parent_id')->where('status_resolucao', 'resolvido')->count();
         $taxaGeralResolucao = $totalAlertas > 0 ? round(($resolvidos / $totalAlertas) * 100, 1) : 0;
@@ -102,6 +103,7 @@ class DashboardController extends Controller
         // Gráfico Mensal
         $monthly = Alert::query()
             ->whereNull('parent_id')
+            ->where('status_resolucao', '!=', Alert::STATUS_IGNORADO)
             ->select(['data_ocorrencia', 'status_resolucao'])
             ->get()
             ->groupBy(function ($alert) {
@@ -121,6 +123,7 @@ class DashboardController extends Controller
         // Top 5 serviços com incidentes
         $topServices = Alert::query()
             ->whereNull('parent_id')
+            ->where('status_resolucao', '!=', Alert::STATUS_IGNORADO)
             ->selectRaw('COALESCE(service_name, type) as servico, count(*) as total, sum(case when status_resolucao = "pendente" then 1 else 0 end) as pendentes')
             ->groupBy('servico')
             ->orderByDesc('total')
