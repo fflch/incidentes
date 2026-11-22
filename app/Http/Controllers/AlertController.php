@@ -252,6 +252,10 @@ class AlertController extends Controller
             }
 
             if ($request->status_resolucao === 'pendente') {
+                if ($alert->getOriginal('status_resolucao') === Alert::STATUS_IGNORADO) {
+                    // Reativado manualmente: a verificação periódica não ignora de novo
+                    $alert->nao_ignorar = true;
+                }
                 $alert->resolvido_por_id = null;
                 $alert->resolvido_em = null;
                 $alert->ignore_rule_id = null;

@@ -15,7 +15,47 @@
     </div>
 
     <div class="row g-3">
-        <div class="col-lg-6">
+        <div class="col-lg-6 col-xl-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <h2 class="h5 mb-1"><i class="fas fa-eye-slash text-secondary me-2"></i>Regras para ignorar</h2>
+                    <p class="text-muted small">
+                        A cada 5 minutos, <strong>antes</strong> do agrupamento e da atribuição, os alertas pendentes cuja mensagem
+                        contenha um texto das <a href="{{ route('ignore-rules.index') }}">regras para ignorar</a> são ignorados
+                        (inclusive os inseridos direto via SQL). Alertas reativados manualmente não são ignorados de novo.
+                        Use o botão abaixo para forçar a verificação agora.
+                    </p>
+
+                    <dl class="row small mb-3">
+                        <dt class="col-sm-5 text-muted">Regras cadastradas</dt>
+                        <dd class="col-sm-7">{{ $regrasIgnorar }}</dd>
+                        <dt class="col-sm-5 text-muted">Alertas ignorados</dt>
+                        <dd class="col-sm-7"><a href="{{ route('alerts.ignored') }}">{{ $ignorados }}</a></dd>
+                        <dt class="col-sm-5 text-muted">Reativados (protegidos)</dt>
+                        <dd class="col-sm-7">{{ $reativados }}</dd>
+                        <dt class="col-sm-5 text-muted">Última execução</dt>
+                        <dd class="col-sm-7">
+                            @if($ignoreLastRun)
+                                {{ $ignoreLastRun['executado_em']->format('d/m/Y H:i:s') }}
+                                <span class="text-muted">({{ $ignoreLastRun['executado_em']->diffForHumans() }}, {{ $ignoreLastRun['origem'] }})</span>
+                                <div class="text-muted">{{ $ignoreLastRun['ignorados'] }} alerta(s) ignorado(s)</div>
+                            @else
+                                <span class="text-muted">Sem registro</span>
+                            @endif
+                        </dd>
+                    </dl>
+
+                    <form method="POST" action="{{ route('settings.apply-ignore-rules') }}"
+                          onsubmit="this.querySelector('button').disabled = true;">
+                        @csrf
+                        <button type="submit" class="btn btn-secondary w-100" @disabled($regrasIgnorar === 0)>
+                            <i class="fas fa-play me-1"></i> Verificar pendentes agora
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6 col-xl-4">
             <div class="card border-0 shadow-sm h-100">
                 <div class="card-body">
                     <h2 class="h5 mb-1"><i class="fas fa-layer-group text-primary me-2"></i>Agrupamento de alertas similares</h2>
@@ -64,7 +104,7 @@
                 </div>
             </div>
         </div>
-        <div class="col-lg-6">
+        <div class="col-lg-6 col-xl-4">
             <div class="card border-0 shadow-sm h-100">
                 <div class="card-body">
                     <h2 class="h5 mb-1"><i class="fas fa-user-tag text-primary me-2"></i>Atribuição automática</h2>

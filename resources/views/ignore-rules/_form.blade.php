@@ -18,15 +18,10 @@
     @enderror
 </div>
 
-<div class="mb-4 p-3 bg-light rounded border">
-    <div class="form-check">
-        <input class="form-check-input" type="checkbox" name="apply_to_pending" id="apply_to_pending" value="1" {{ old('apply_to_pending') ? 'checked' : '' }}>
-        <label class="form-check-label fw-semibold" for="apply_to_pending">
-            Ignorar também os alertas pendentes que já existem
-        </label>
-    </div>
-    <div class="small text-muted mt-1">
-        Se marcado, os alertas pendentes cuja mensagem do alerta principal contenha esse texto serão ignorados agora,
-        junto com todas as suas repetições, e perdem o responsável.
-    </div>
+<div class="mb-4 p-3 bg-light rounded border small text-muted">
+    <i class="fas fa-info-circle me-1"></i>
+    Ao salvar, a regra também é aplicada aos <strong>alertas pendentes que já existem</strong>: os que tiverem esse texto
+    na mensagem do alerta principal são ignorados junto com as repetições e perdem o responsável.
+    A cada 5 minutos a verificação roda de novo (pegando inclusive alertas inseridos direto via SQL),
+    exceto para alertas que você reativou manualmente.
 </div>

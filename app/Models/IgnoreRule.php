@@ -38,31 +38,6 @@ class IgnoreRule extends Model
     }
 
     /**
-     * Ignora os alertas pendentes que já existem e cuja mensagem do alerta
-     * principal contém o texto da regra. O grupo inteiro (principal +
-     * repetições) é ignorado. Retorna quantos grupos foram ignorados.
-     */
-    public function applyToPending(): int
-    {
-        $like = '%' . addcslashes(trim($this->pattern), '%_\\') . '%';
-        $count = 0;
-
-        Alert::query()
-            ->whereNull('parent_id')
-            ->where('status_resolucao', Alert::STATUS_PENDENTE)
-            ->where('mensagem', 'like', $like)
-            ->orderBy('id')
-            ->get()
-            ->filter(fn (Alert $alert) => $this->matches($alert->mensagem))
-            ->each(function (Alert $alert) use (&$count) {
-                $alert->ignoreGroup($this);
-                $count++;
-            });
-
-        return $count;
-    }
-
-    /**
      * Primeira regra (a mais antiga) cujo texto aparece na mensagem.
      */
     public static function findForMessage(?string $mensagem): ?self

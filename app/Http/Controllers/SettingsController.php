@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Models\Alert;
 use App\Models\AssignmentRule;
+use App\Models\IgnoreRule;
 use App\Services\AlertAssignmentService;
 use App\Services\AlertGroupingService;
+use App\Services\AlertIgnoreService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 
@@ -16,10 +18,11 @@ class SettingsController extends Controller
         $this->middleware(['auth', 'can:admin']);
     }
 
-    public function index(AlertGroupingService $groupingService, AlertAssignmentService $assignmentService)
+    public function index(AlertGroupingService $groupingService, AlertAssignmentService $assignmentService, AlertIgnoreService $ignoreService)
     {
         $lastRun = $this->parseRun($groupingService->lastRun());
         $assignmentLastRun = $this->parseRun($assignmentService->lastRun());
+        $ignoreLastRun = $this->parseRun($ignoreService->lastRun());
 
         return view('settings.index', [
             'lastRun' => $lastRun,
@@ -27,6 +30,10 @@ class SettingsController extends Controller
             'raizes' => Alert::whereNull('parent_id')->count(),
             'agrupados' => Alert::whereNotNull('parent_id')->count(),
             'assignmentLastRun' => $assignmentLastRun,
+            'ignoreLastRun' => $ignoreLastRun,
+            'regrasIgnorar' => IgnoreRule::count(),
+            'ignorados' => Alert::ignorado()->count(),
+            'reativados' => Alert::whereNull('parent_id')->where('status_resolucao', Alert::STATUS_PENDENTE)->where('nao_ignorar', true)->count(),
             'regras' => AssignmentRule::count(),
             'semResponsavel' => Alert::whereNull('parent_id')
                 ->where('status_resolucao', 'pendente')
@@ -59,6 +66,18 @@ class SettingsController extends Controller
                 $result['pendentes_agrupados'],
                 $result['ignorados_agrupados'],
                 $result['raizes_corrigidas'],
+            ));
+    }
+
+    public function applyIgnoreRules(Request $request, AlertIgnoreService $ignoreService)
+    {
+        $result = $ignoreService->run('manual (' . $request->user()->name . ')');
+
+        return redirect()
+            ->route('settings.index')
+            ->with('success', sprintf(
+                'Regras para ignorar aplicadas: %d alerta(s) pendente(s) ignorado(s).',
+                $result['ignorados'],
             ));
     }
 

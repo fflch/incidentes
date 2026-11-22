@@ -21,6 +21,7 @@ class Alert extends Model
         'resolvido_em',
         'parent_id',
         'ignore_rule_id',
+        'nao_ignorar',
     ];
 
     public const STATUS_PENDENTE = 'pendente';
@@ -33,6 +34,7 @@ class Alert extends Model
     protected $casts = [
         'data_ocorrencia' => 'datetime',
         'resolvido_em' => 'datetime',
+        'nao_ignorar' => 'boolean',
     ];
 
     protected static function booted(): void
@@ -279,12 +281,17 @@ class Alert extends Model
     public function reopenGroup(): void
     {
         $root = $this->groupRoot();
+        // Reativado depois de ignorado: a verificação periódica não ignora de novo
+        $reativado = $root->isIgnored();
 
         foreach ($root->children()->get()->merge([$root]) as $alert) {
             $alert->status_resolucao = 'pendente';
             $alert->resolvido_por_id = null;
             $alert->resolvido_em = null;
             $alert->ignore_rule_id = null;
+            if ($reativado) {
+                $alert->nao_ignorar = true;
+            }
             $alert->save();
         }
     }

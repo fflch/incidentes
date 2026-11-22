@@ -9,6 +9,8 @@ use App\Models\IgnoreRule;
 use App\Models\User;
 use App\Services\AlertGroupingService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Mail;
 use Tests\TestCase;
@@ -91,7 +93,7 @@ class IgnoreRulesTest extends TestCase
         $this->assertNull($pend->fresh()->parent_id);
     }
 
-    public function test_cadastro_de_regra_com_aplicacao_retroativa_ignora_grupo_e_tira_responsavel(): void
+    public function test_cadastro_de_regra_ignora_pendentes_existentes_e_tira_responsavel(): void
     {
         Mail::fake();
         $resp = User::factory()->create();
@@ -100,7 +102,7 @@ class IgnoreRulesTest extends TestCase
         $outro = $this->alert('3', '2026-11-10 10:00:00', ['mensagem' => 'Disk full']);
 
         $this->actingAs($this->admin)
-            ->post(route('ignore-rules.store'), ['pattern' => '  finished with warnings ', 'apply_to_pending' => 1])
+            ->post(route('ignore-rules.store'), ['pattern' => '  finished with warnings '])
             ->assertRedirect(route('ignore-rules.index'))
             ->assertSessionHas('success', fn ($m) => str_contains($m, '1 alerta(s) pendente(s) foram ignorados'));
 
@@ -117,9 +119,8 @@ class IgnoreRulesTest extends TestCase
         $this->assertSame('pendente', $outro->fresh()->status_resolucao);
         Mail::assertNothingSent();
 
-        // Sem o checkbox, só vale para alertas novos
         $this->actingAs($this->admin)->post(route('ignore-rules.store'), ['pattern' => 'Disk full'])->assertRedirect();
-        $this->assertSame('pendente', $outro->fresh()->status_resolucao);
+        $this->assertSame('ignorado', $outro->fresh()->status_resolucao);
 
         // Validações
         $this->actingAs($this->admin)->post(route('ignore-rules.store'), ['pattern' => 'ab'])->assertSessionHasErrors('pattern');
@@ -222,5 +223,98 @@ class IgnoreRulesTest extends TestCase
             ->assertJsonMissingPath('alerts.0.ultima_ocorrencia_obj');
 
         $this->get('/')->assertOk()->assertSee('Último alerta recebido');
+    }
+
+    private function insertViaSql(string $id, string $mensagem, array $extra = []): int
+    {
+        return DB::table('alerts')->insertGetId(array_merge([
+            'type' => 'zabbix',
+            'id_externo' => $id,
+            'service_name' => 'Portal',
+            'data_ocorrencia' => '2026-11-10 08:00:00',
+            'mensagem' => $mensagem,
+            'status_resolucao' => 'pendente',
+        ], $extra));
+    }
+
+    public function test_verificacao_periodica_ignora_alertas_inseridos_via_sql_antes_da_atribuicao(): void
+    {
+        $responsavel = User::factory()->create();
+        AssignmentRule::create(['match_field' => 'service_name', 'pattern' => 'Portal', 'user_id' => $responsavel->id]);
+        IgnoreRule::create(['pattern' => 'heartbeat']);
+
+        $ruido = $this->insertViaSql('1', 'Heartbeat ok');
+        $filho = $this->insertViaSql('2', 'Heartbeat ok again', ['parent_id' => $ruido]);
+        $real = $this->insertViaSql('3', 'Disk full');
+
+        // Mesma ordem do agendamento
+        $this->artisan('alerts:apply-ignore-rules')->expectsOutputToContain('1 alerta(s)')->assertSuccessful();
+        $this->artisan('alerts:group-similar')->assertSuccessful();
+        $this->artisan('alerts:apply-assignment-rules')->assertSuccessful();
+
+        $this->assertSame('ignorado', Alert::find($ruido)->status_resolucao);
+        $this->assertSame('ignorado', Alert::find($filho)->status_resolucao);
+        $this->assertNull(Alert::find($ruido)->atribuido);
+        $this->assertSame('pendente', Alert::find($real)->status_resolucao);
+        $this->assertSame($responsavel->id, Alert::find($real)->atribuido);
+    }
+
+    public function test_agendamento_roda_ignorar_antes_de_agrupar_e_atribuir(): void
+    {
+        $commands = collect(app(Schedule::class)->events())->map(fn ($e) => $e->command)->implode("\n");
+
+        $ignorar = strpos($commands, 'alerts:apply-ignore-rules');
+        $agrupar = strpos($commands, 'alerts:group-similar');
+        $atribuir = strpos($commands, 'alerts:apply-assignment-rules');
+
+        $this->assertNotFalse($ignorar);
+        $this->assertLessThan($agrupar, $ignorar);
+        $this->assertLessThan($atribuir, $ignorar);
+    }
+
+    public function test_alerta_reativado_nao_e_ignorado_de_novo(): void
+    {
+        IgnoreRule::create(['pattern' => 'heartbeat']);
+        $id = $this->insertViaSql('1', 'heartbeat');
+        $this->artisan('alerts:apply-ignore-rules')->assertSuccessful();
+        $alert = Alert::find($id);
+        $this->assertTrue($alert->isIgnored());
+
+        $this->actingAs($this->admin)->post(route('alerts.reopen', $alert))->assertRedirect();
+        $this->assertTrue($alert->fresh()->nao_ignorar);
+
+        $this->artisan('alerts:apply-ignore-rules')->expectsOutputToContain('0 alerta(s)')->assertSuccessful();
+        $this->actingAs($this->admin)->post(route('ignore-rules.store'), ['pattern' => 'heartbe'])->assertRedirect();
+        $this->assertSame('pendente', $alert->fresh()->status_resolucao);
+
+        $this->actingAs($this->admin)->get(route('alerts.show', $alert))->assertOk()->assertSee('Reativado manualmente');
+
+        // Resolver e reabrir um alerta comum não marca como protegido
+        $comum = $this->alert('9', '2026-11-11 08:00:00', ['service_name' => 'X', 'mensagem' => 'Erro']);
+        $comum->resolveGroup('ok', $this->admin->id);
+        $comum->reopenGroup();
+        $this->assertFalse($comum->fresh()->nao_ignorar);
+    }
+
+    public function test_admin_forca_verificacao_pela_tela_de_configuracoes(): void
+    {
+        $id = $this->insertViaSql('1', 'Heartbeat OK');
+        DB::table('ignore_rules')->insert(['pattern' => 'heartbeat', 'created_at' => now(), 'updated_at' => now()]);
+
+        $this->actingAs($this->admin)->get(route('settings.index'))
+            ->assertOk()
+            ->assertSee('Regras para ignorar')
+            ->assertSee('Verificar pendentes agora');
+
+        $this->actingAs($this->admin)
+            ->post(route('settings.apply-ignore-rules'))
+            ->assertRedirect(route('settings.index'))
+            ->assertSessionHas('success', fn ($m) => str_contains($m, '1 alerta(s) pendente(s) ignorado(s)'));
+
+        $this->assertTrue(Alert::find($id)->isIgnored());
+        $this->actingAs($this->admin)->get(route('settings.index'))->assertOk()->assertSee('1 alerta(s) ignorado(s)');
+
+        Gate::define('admin', fn () => false);
+        $this->actingAs(User::factory()->create())->post(route('settings.apply-ignore-rules'))->assertForbidden();
     }
 }

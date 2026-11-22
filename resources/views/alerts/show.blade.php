@@ -249,6 +249,12 @@
                 <div class="card-body p-4">
                     <h5 class="card-title fw-bold mb-3"><i class="fas fa-bolt text-warning me-1"></i> Ações</h5>
 
+                    @if($isPending && $rootAlert->nao_ignorar)
+                        <div class="alert alert-light border py-2 small mb-2">
+                            <i class="fas fa-shield-alt me-1"></i> Reativado manualmente: as regras para ignorar não se aplicam mais a este alerta.
+                        </div>
+                    @endif
+
                     @if($isIgnored)
                         <div class="alert alert-secondary py-2 small mb-2">
                             <i class="fas fa-eye-slash me-1"></i>
