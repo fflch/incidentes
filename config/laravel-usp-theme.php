@@ -27,14 +27,20 @@ $menu = [
         'can' => 'admin',
     ],
     [
-        'text' => '<i class="fas fa-magic me-1"></i> Regras de Atribuição',
-        'url' => 'assignment-rules',
+        'text' => '<i class="fas fa-sliders-h me-1"></i> Regras',
         'can' => 'admin',
-    ],
-    [
-        'text' => '<i class="fas fa-eye-slash me-1"></i> Regras para Ignorar',
-        'url' => 'ignore-rules',
-        'can' => 'admin',
+        'submenu' => [
+            [
+                'text' => '<i class="fas fa-magic me-1"></i> Regras de Atribuição',
+                'url' => 'assignment-rules',
+                'can' => 'admin',
+            ],
+            [
+                'text' => '<i class="fas fa-eye-slash me-1"></i> Regras para Ignorar',
+                'url' => 'ignore-rules',
+                'can' => 'admin',
+            ],
+        ],
     ],
 ];
 
