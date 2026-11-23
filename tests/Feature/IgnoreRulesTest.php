@@ -317,4 +317,52 @@ class IgnoreRulesTest extends TestCase
         Gate::define('admin', fn () => false);
         $this->actingAs(User::factory()->create())->post(route('settings.apply-ignore-rules'))->assertForbidden();
     }
+
+    public function test_aceita_texto_longo_na_regra(): void
+    {
+        $longo = "SQLSTATE[HY000] General error: " . str_repeat('trecho longo da mensagem ', 30);
+        $this->assertGreaterThan(255, strlen($longo));
+        $alerta = $this->alert('1', '2026-11-10 08:00:00', ['mensagem' => "Erro de App (Laravel 500):\n" . $longo . "\nStack trace..."]);
+
+        $this->actingAs($this->admin)
+            ->post(route('ignore-rules.store'), ['pattern' => $longo])
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('ignore-rules.index'));
+
+        $this->assertSame(trim($longo), IgnoreRule::first()->pattern);
+        $this->assertTrue($alerta->fresh()->isIgnored());
+
+        // Duplicado continua barrado; acima do limite mostra mensagem em português
+        $this->actingAs($this->admin)->post(route('ignore-rules.store'), ['pattern' => $longo])->assertSessionHasErrors('pattern');
+        $this->actingAs($this->admin)->post(route('ignore-rules.store'), ['pattern' => str_repeat('a', 20001)])
+            ->assertSessionHasErrors(['pattern' => 'O texto pode ter no máximo 20000 caracteres.']);
+    }
+
+    public function test_texto_multilinha_casa_mesmo_com_quebras_e_espacos_diferentes(): void
+    {
+        // Como chega do formulário (\r\n, indentação diferente)
+        $pattern = "Erro de App (Laravel 500):\r\n  SQLSTATE[HY000] [2002] Connection refused\r\n\r\n  (Connection: mariadb,";
+
+        $alerta = $this->alert('1', '2026-11-10 08:00:00', [
+            'mensagem' => "Erro de App (Laravel 500):\nSQLSTATE[HY000] [2002]   Connection refused\n(Connection: mariadb, SQL: select 1)\n#0 vendor/...",
+        ]);
+        $outro = $this->alert('2', '2026-11-10 09:00:00', [
+            'service_name' => 'X',
+            'mensagem' => "Erro de App (Laravel 500):\nSQLSTATE[HY000] [2002] Timeout",
+        ]);
+
+        $this->actingAs($this->admin)->post(route('ignore-rules.store'), ['pattern' => $pattern])
+            ->assertSessionHasNoErrors();
+
+        $this->assertTrue($alerta->fresh()->isIgnored());
+        $this->assertFalse($outro->fresh()->isIgnored());
+
+        // Alerta novo pela API com o mesmo trecho também chega ignorado
+        $this->ingest('9', "Erro de App (Laravel 500):\nSQLSTATE[HY000] [2002] Connection refused\n(Connection: mariadb, SQL: x)")
+            ->assertJsonPath('status', 'ignorado');
+
+        $this->actingAs($this->admin)->get(route('ignore-rules.index'))->assertOk()->assertSee('SQLSTATE[HY000]');
+        $this->actingAs($this->admin)->get(route('alerts.ignored'))->assertOk();
+        $this->actingAs($this->admin)->get(route('alerts.show', $alerta))->assertOk()->assertSee('Ignorado pela regra', false);
+    }
 }

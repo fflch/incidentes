@@ -128,7 +128,7 @@ class AlertController extends Controller
             : null;
 
         $avisoIgnorado = $alert->isIgnored()
-            ? ' Ele foi ignorado pela regra "' . $alert->ignoreRule?->pattern . '" e ficou arquivado em Alertas Ignorados.'
+            ? ' Ele foi ignorado pela regra "' . \Illuminate\Support\Str::limit(IgnoreRule::normalize((string) $alert->ignoreRule?->pattern), 80) . '" e ficou arquivado em Alertas Ignorados.'
             : '';
 
         if ($groupRoot) {

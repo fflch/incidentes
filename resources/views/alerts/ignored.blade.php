@@ -49,7 +49,7 @@
             <div class="small text-muted mt-2">
                 {{ $totalIgnorados }} alerta(s) ignorado(s) no total.
                 @if($regra)
-                    Mostrando apenas os ignorados pela regra <code>{{ $regra->pattern }}</code>.
+                    Mostrando apenas os ignorados pela regra <code title="{{ $regra->pattern }}">{{ \Illuminate\Support\Str::limit(\App\Models\IgnoreRule::normalize($regra->pattern), 120) }}</code>.
                 @endif
             </div>
         </div>
@@ -90,7 +90,7 @@
                                     <div class="col-sm-auto">
                                         <i class="fas fa-filter me-1"></i> Regra:
                                         @if($alert->ignoreRule)
-                                            <code>{{ $alert->ignoreRule->pattern }}</code>
+                                            <code title="{{ $alert->ignoreRule->pattern }}">{{ \Illuminate\Support\Str::limit(\App\Models\IgnoreRule::normalize($alert->ignoreRule->pattern), 80) }}</code>
                                         @else
                                             <strong>manual / regra removida</strong>
                                         @endif

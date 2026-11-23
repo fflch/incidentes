@@ -57,7 +57,7 @@
                     @forelse($rules as $rule)
                         <tr>
                             <td>
-                                <code class="text-dark fs-6 text-break">{{ $rule->pattern }}</code>
+                                <pre class="mb-1 p-2 bg-light border rounded small text-dark text-break" style="white-space: pre-wrap; max-height: 9rem; overflow: auto;">{{ $rule->pattern }}</pre>
                                 <div class="small text-muted">
                                     Criada em {{ $rule->created_at?->format('d/m/Y H:i') }}
                                     @if($rule->user) por {{ $rule->user->name }} @endif

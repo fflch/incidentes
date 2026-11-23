@@ -51,7 +51,7 @@
                     @if($isIgnored)
                         <i class="fas fa-eye-slash me-1"></i>
                         @if($rootAlert->ignoreRule)
-                            Ignorado pela regra <strong>"{{ $rootAlert->ignoreRule->pattern }}"</strong>
+                            Ignorado pela regra <strong title="{{ $rootAlert->ignoreRule->pattern }}">"{{ \Illuminate\Support\Str::limit(\App\Models\IgnoreRule::normalize($rootAlert->ignoreRule->pattern), 80) }}"</strong>
                         @else
                             Ignorado
                         @endif
@@ -335,7 +335,7 @@
                             <dt class="col-5 text-muted fw-normal">Regra</dt>
                             <dd class="col-7 mb-0 text-break">
                                 @if($rootAlert->ignoreRule)
-                                    <code>{{ $rootAlert->ignoreRule->pattern }}</code>
+                                    <pre class="mb-0 small text-break" style="white-space: pre-wrap; max-height: 8rem; overflow: auto;">{{ $rootAlert->ignoreRule->pattern }}</pre>
                                 @else
                                     manual / regra removida
                                 @endif

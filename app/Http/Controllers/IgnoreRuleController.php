@@ -89,10 +89,11 @@ class IgnoreRuleController extends Controller
         $request->merge(['pattern' => trim((string) $request->input('pattern'))]);
 
         return $request->validate([
-            'pattern' => ['required', 'string', 'min:3', 'max:255', $unique],
+            'pattern' => ['required', 'string', 'min:3', 'max:20000', $unique],
         ], [
             'pattern.required' => 'Informe o texto que, se aparecer na mensagem, fará o alerta ser ignorado.',
             'pattern.min' => 'O texto deve ter pelo menos 3 caracteres, para não ignorar alertas demais.',
+            'pattern.max' => 'O texto pode ter no máximo 20000 caracteres.',
             'pattern.unique' => 'Já existe uma regra com esse texto.',
         ]);
     }

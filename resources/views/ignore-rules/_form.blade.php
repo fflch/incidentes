@@ -1,16 +1,16 @@
 {{-- Formulário de regra para ignorar. Espera opcionalmente $rule. --}}
 <div class="mb-4">
     <label for="pattern" class="form-label fw-bold">Texto na mensagem do alerta <span class="text-danger">*</span></label>
-    <input type="text"
-           id="pattern"
-           name="pattern"
-           class="form-control form-control-lg @error('pattern') is-invalid @enderror"
-           value="{{ old('pattern', $rule->pattern ?? '') }}"
-           placeholder="Ex.: Certificate will expire in 30 days"
-           autocomplete="off"
-           required>
+    <textarea id="pattern"
+              name="pattern"
+              rows="8"
+              maxlength="20000"
+              class="form-control font-monospace @error('pattern') is-invalid @enderror"
+              placeholder="Ex.: Certificate will expire in 30 days"
+              required>{{ old('pattern', $rule->pattern ?? '') }}</textarea>
     <div class="form-text">
-        Se esse texto aparecer em qualquer parte da mensagem de um alerta novo (sem diferenciar maiúsculas de minúsculas),
+        Pode ser um trecho grande, com várias linhas, copiado da mensagem do alerta. Diferenças de maiúsculas/minúsculas,
+        espaços e quebras de linha são desconsideradas. Se esse texto aparecer em qualquer parte da mensagem de um alerta,
         o alerta é <strong>ignorado</strong>: fica arquivado em "Alertas Ignorados", sem responsável e sem e-mail para ninguém.
     </div>
     @error('pattern')
